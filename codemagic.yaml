@@ -10,6 +10,7 @@ workflows:
       cocoapods: default
       vars:
         BUNDLE_ID: "com.iosapp.oa"
+        TEAM_ID: "25666J58ZR"
       ios_signing:
         distribution_type: development
         bundle_identifier: $BUNDLE_ID
@@ -22,8 +23,10 @@ workflows:
           include: true
 
     scripts:
-      - name: Set up local properties
-        script: echo "flutter.minSdkVersion=21" > "$CM_BUILD_DIR/android/local.properties"
+      - name: Check environment
+        script: |
+          flutter --version
+          xcodebuild -version
 
       - name: Get Flutter packages
         script: flutter pub get
@@ -33,13 +36,10 @@ workflows:
           cd ios
           pod install || true
 
-      - name: Set iOS deployment target
+      - name: Set code signing
         script: |
-          cd ios
-          if [ ! -f Podfile ]; then
-            flutter precache --ios
-            flutter pub get
-          fi
+          xcode-project use-profiles \
+            --project ios/Runner.xcodeproj
 
       - name: Build IPA
         script: |
@@ -50,7 +50,6 @@ workflows:
     artifacts:
       - build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
-      - flutter_drive.log
 
     publishing:
       email:
