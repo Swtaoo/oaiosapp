@@ -24,6 +24,7 @@ import UIKit
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
 
     let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "oa_location_channel")
+    guard let registrar else { return }
     let channel = FlutterMethodChannel(
       name: locationChannelName,
       binaryMessenger: registrar.messenger()
