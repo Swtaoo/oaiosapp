@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(flutter analyze:*)",
+      "mcp__auggie__codebase-retrieval",
+      "Bash(findstr:*)",
+      "mcp__sequential-thinking__sequentialthinking",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__query-docs",
+      "Bash(flutter pub get:*)",
+      "Bash(flutter --version:*)",
+      "Bash(flutter doctor:*)",
+      "Bash(flutter clean:*)",
+      "Bash(dart run build_runner build:*)",
+      "Bash(flutter build:*)",
+      "mcp__chrome-devtools__take_screenshot"
+    ]
+  }
+}

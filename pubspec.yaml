@@ -1,0 +1,56 @@
+name: oa_flutter
+description: "OA Personnel Management App"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+
+  # State management
+  flutter_riverpod: ^2.6.1
+
+  # HTTP
+  dio: ^5.7.0
+
+  # Router
+  go_router: ^14.8.1
+
+  # Storage
+  shared_preferences: ^2.3.4
+  flutter_secure_storage: ^9.2.4
+
+  # Utils
+  intl: ^0.20.2
+  logger: ^2.5.0
+  image_picker: ^1.1.2
+  file_picker: ^10.0.0
+
+  # Document preview
+  flutter_pdfview: ^1.4.0
+  path_provider: ^2.1.5
+  open_file: ^3.5.10
+
+  # WebSocket
+  web_socket_channel: ^3.0.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+  # Code generation (for future phases)
+  build_runner: ^2.4.14
+  freezed: ^2.5.7
+  freezed_annotation: ^2.4.4
+  json_annotation: ^4.9.0
+  json_serializable: ^6.9.4
+
+flutter:
+  uses-material-design: true
