@@ -40,12 +40,14 @@ workflows:
         script: |
           xcode-project use-profiles \
             --project ios/Runner.xcodeproj
+          echo "=== Export Options ==="
+          cat /Users/builder/export_options.plist
 
       - name: Build IPA
         script: |
           flutter build ipa \
             --release \
-            --export-method development
+            --export-options-plist=/Users/builder/export_options.plist
 
     artifacts:
       - build/ios/ipa/*.ipa
