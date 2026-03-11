@@ -1,14 +1,13 @@
-﻿import 'package:flutter/foundation.dart';
-// 推送服务 - 对应 src/store/push.ts
-// 推送注册、绑定、监听
-// 注意: 实际使用需安装 jpush_flutter 或其他推送 SDK
-
+import 'package:flutter/foundation.dart';
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:jpush_flutter/jpush_flutter.dart';
 
 import '../../core/network/dio_client.dart';
 import '../../core/storage/secure_storage.dart';
+import '../notification/local_notification_service.dart';
 
 /// 推送事件
 class PushEvent {
@@ -58,6 +57,7 @@ class PushState {
 class PushNotifier extends StateNotifier<PushState> {
   final Ref _ref;
   final Map<String, void Function(PushEvent)> _listeners = {};
+  final JPush _jpush = JPush();
 
   PushNotifier(this._ref) : super(const PushState());
 
@@ -68,22 +68,109 @@ class PushNotifier extends StateNotifier<PushState> {
   }
 
   /// 初始化推送服务
-  /// 注意: 实际实现需要集成 jpush_flutter
   Future<void> initPush() async {
     if (state.isInitialized) return;
 
     try {
-      // TODO: 集成 jpush_flutter 后在此初始化
-      // final jpush = JPush();
-      // jpush.setup(appKey: 'YOUR_JPUSH_APP_KEY', channel: 'developer-default');
-      // jpush.addEventHandler(
-      //   onReceiveNotification: (msg) => _dispatch(msg, 'receive'),
-      //   onOpenNotification: (msg) => _dispatch(msg, 'click'),
-      //   onReceiveRegistrationId: (rid) => _bindClientId(rid),
-      // );
+      _jpush.setup(
+        appKey: '081191f8285f4ca2ecc1f9e2',
+        channel: 'developer-default',
+        production: false,
+        debug: !kReleaseMode,
+      );
+
+      // 注册事件处理
+      _jpush.addEventHandler(
+        onReceiveNotification: (Map<String, dynamic> message) async {
+          debugPrint('[push_service] onReceiveNotification: $message');
+          _dispatchEvent(message, 'receive');
+        },
+        onOpenNotification: (Map<String, dynamic> message) async {
+          debugPrint('[push_service] onOpenNotification: $message');
+          _dispatchEvent(message, 'click');
+          _handleNotificationClick(message);
+        },
+        onConnected: (Map<String, dynamic> message) async {
+          debugPrint('[push_service] onConnected: $message');
+          // 连接成功后获取 registrationId
+          _fetchRegistrationId();
+        },
+      );
+
+      // 获取 registrationId
+      _fetchRegistrationId();
+
+      // iOS 请求推送权限
+      if (Platform.isIOS) {
+        _jpush.applyPushAuthority(
+          const NotificationSettingsIOS(
+            sound: true,
+            alert: true,
+            badge: true,
+          ),
+        );
+      }
 
       state = state.copyWith(isInitialized: true);
-    } catch (e) { debugPrint('[push_service] Error: $e'); }
+    } catch (e) {
+      debugPrint('[push_service] initPush error: $e');
+    }
+  }
+
+  /// 获取 JPush registrationId 并绑定
+  Future<void> _fetchRegistrationId() async {
+    try {
+      final rid = await _jpush.getRegistrationID();
+      if (rid.isNotEmpty) {
+        debugPrint('[push_service] registrationId: $rid');
+        state = state.copyWith(lastClientId: rid);
+        bindClientId();
+      }
+    } catch (e) {
+      debugPrint('[push_service] getRegistrationID error: $e');
+    }
+  }
+
+  /// 分发推送事件给监听器
+  void _dispatchEvent(Map<String, dynamic> message, String type) {
+    final title = message['title'] as String? ?? '';
+    final content = message['alert'] as String? ??
+        message['content'] as String? ??
+        '';
+    final extras = message['extras'] as Map<String, dynamic>? ?? {};
+
+    final event = PushEvent(
+      title: title,
+      content: content,
+      payload: extras,
+      type: type,
+    );
+
+    for (final listener in _listeners.values) {
+      try {
+        listener(event);
+      } catch (e) {
+        debugPrint('[push_service] listener error: $e');
+      }
+    }
+  }
+
+  /// 处理通知点击 - 导航到对应聊天页
+  void _handleNotificationClick(Map<String, dynamic> message) {
+    final extras = message['extras'] as Map<String, dynamic>? ?? {};
+    final projectIdStr = extras['projectId']?.toString();
+    final projectName = extras['projectName'] as String? ?? '';
+
+    if (projectIdStr == null) return;
+    final projectId = int.tryParse(projectIdStr);
+    if (projectId == null) return;
+
+    final context = LocalNotificationNotifier.navigatorKey?.currentContext;
+    if (context != null) {
+      GoRouter.of(context).push(
+        '/project/progress?id=$projectId&name=${Uri.encodeComponent(projectName)}',
+      );
+    }
   }
 
   /// 绑定推送客户端 ID 到后端
@@ -105,7 +192,8 @@ class PushNotifier extends StateNotifier<PushState> {
         'clientId': clientId,
         'platform': platform,
       });
-    } catch (e) { debugPrint('[push_service] Error: $e');
+    } catch (e) {
+      debugPrint('[push_service] bindClientId error: $e');
     } finally {
       if (mounted) state = state.copyWith(isBinding: false);
     }

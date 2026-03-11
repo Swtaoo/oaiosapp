@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -37,10 +37,15 @@ class _PunchTabState extends ConsumerState<PunchTab> {
       const Duration(seconds: 1),
       (_) => _updateCurrentTime(),
     );
-    // 初始化考勤数据
-    Future.microtask(() {
-      ref.read(attendanceProvider.notifier).init();
-      ref.read(geolocationProvider.notifier).getCurrentLocation();
+    // 初始化考勤数据 & 预热定位（并行，避免串行等待导致首屏定位更慢）
+    // 放到首帧之后，避免部分机型上首次进入页面时定位权限弹窗/MethodChannel 还未就绪
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(
+        Future.wait([
+          ref.read(attendanceProvider.notifier).init(),
+          _handleGetLocation(),
+        ]),
+      );
     });
     _setupMidnightReset();
   }
@@ -86,8 +91,7 @@ class _PunchTabState extends ConsumerState<PunchTab> {
   int _parseTimeToMinutes(String timeStr) {
     final parts = timeStr.split(':');
     if (parts.length < 2) return 0;
-    return (int.tryParse(parts[0]) ?? 0) * 60 +
-        (int.tryParse(parts[1]) ?? 0);
+    return (int.tryParse(parts[0]) ?? 0) * 60 + (int.tryParse(parts[1]) ?? 0);
   }
 
   String get _statusMessage {
@@ -125,7 +129,9 @@ class _PunchTabState extends ConsumerState<PunchTab> {
     if (!store.hasClockedIn && nowMinutes >= clockInMinutes) {
       return AppColors.error;
     }
-    if (store.hasClockedIn && !store.hasClockedOut && nowMinutes >= clockOutMinutes) {
+    if (store.hasClockedIn &&
+        !store.hasClockedOut &&
+        nowMinutes >= clockOutMinutes) {
       return AppColors.warning;
     }
     return AppColors.textSecondary;
@@ -133,24 +139,35 @@ class _PunchTabState extends ConsumerState<PunchTab> {
 
   Color get _statusBgColor {
     final color = _statusColor;
-    if (color == AppColors.success) return AppColors.success.withValues(alpha: 0.1);
-    if (color == AppColors.error) return AppColors.error.withValues(alpha: 0.1);
-    if (color == AppColors.warning) return AppColors.warning.withValues(alpha: 0.1);
+    if (color == AppColors.success) {
+      return AppColors.success.withValues(alpha: 0.1);
+    }
+    if (color == AppColors.error) {
+      return AppColors.error.withValues(alpha: 0.1);
+    }
+    if (color == AppColors.warning) {
+      return AppColors.warning.withValues(alpha: 0.1);
+    }
     return const Color(0xFFF2F2F7);
   }
 
   void _updateWithinRange() {
     final store = ref.read(attendanceProvider);
-    ref.read(geolocationProvider.notifier).checkWithinRange(
-      store.rule.fenceLat,
-      store.rule.fenceLng,
-      store.rule.fenceRadius,
-    );
+    ref
+        .read(geolocationProvider.notifier)
+        .checkWithinRange(
+          store.rule.fenceLat,
+          store.rule.fenceLng,
+          store.rule.fenceRadius,
+        );
   }
 
   Future<String> _handleGetLocation() async {
-    final addr =
-        await ref.read(geolocationProvider.notifier).getCurrentLocation();
+    final addr = await ref
+        .read(geolocationProvider.notifier)
+        .getCurrentLocation(
+          addressTimeout: const Duration(seconds: 5),
+        );
     _updateWithinRange();
     return addr;
   }
@@ -174,9 +191,13 @@ class _PunchTabState extends ConsumerState<PunchTab> {
       final punchTime =
           '${DateFormat('yyyy-MM-dd').format(now)} ${DateFormat('HH:mm:ss').format(now)}';
 
-      await ref.read(attendanceProvider.notifier).doPunch(
+      final isWithinRange = ref.read(geolocationProvider).isWithinRange;
+      await ref
+          .read(attendanceProvider.notifier)
+          .doPunch(
             punchLocation: currentLocation,
             punchTime: punchTime,
+            isWithinRange: isWithinRange,
           );
 
       setState(() => _punchSuccess = true);
@@ -191,23 +212,46 @@ class _PunchTabState extends ConsumerState<PunchTab> {
       Future.delayed(const Duration(seconds: 1), () {
         if (mounted) setState(() => _punchSuccess = false);
       });
-    } catch (e) { debugPrint('[punch_tab] Error: $e');
+    } catch (e) {
+      debugPrint('[punch_tab] Error: $e');
       // 401 等已在 HTTP 层处理
     } finally {
       setState(() => _isPunching = false);
-      _handleGetLocation().whenComplete(() {
-        _cooldownTimer = Timer(
-          const Duration(milliseconds: AttendanceConstants.punchCooldownMs),
-          () {
-            if (mounted) setState(() => _canClick = true);
-          },
-        );
-      });
+      _cooldownTimer = Timer(
+        const Duration(milliseconds: AttendanceConstants.punchCooldownMs),
+        () {
+          if (mounted) setState(() => _canClick = true);
+        },
+      );
+      // 定位刷新不应影响按钮冷却计时，避免定位慢导致按钮长时间不可点
+      unawaited(_handleGetLocation());
     }
+  }
+
+  Future<void> _handleRefresh() async {
+    try {
+      await ref.read(attendanceProvider.notifier).fetchRule();
+      await ref.read(attendanceProvider.notifier).fetchTodayData();
+    } catch (e) {
+      debugPrint('[punch_tab] Refresh error: $e');
+    }
+    await _handleGetLocation();
   }
 
   @override
   Widget build(BuildContext context) {
+    // 围栏配置更新后，首次加载即可判断是否为外勤（影响按钮文案/颜色）
+    ref.listen(attendanceProvider.select((s) => s.rule), (prev, next) {
+      if (prev == null ||
+          prev.fenceLat != next.fenceLat ||
+          prev.fenceLng != next.fenceLng ||
+          prev.fenceRadius != next.fenceRadius) {
+        ref
+            .read(geolocationProvider.notifier)
+            .checkWithinRange(next.fenceLat, next.fenceLng, next.fenceRadius);
+      }
+    });
+
     final store = ref.watch(attendanceProvider);
     final geoState = ref.watch(geolocationProvider);
 
@@ -216,10 +260,13 @@ class _PunchTabState extends ConsumerState<PunchTab> {
       return _buildSkeleton();
     }
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        children: [
+    return RefreshIndicator(
+      onRefresh: _handleRefresh,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
           // 考勤信息卡片
           Container(
             width: double.infinity,
@@ -242,7 +289,9 @@ class _PunchTabState extends ConsumerState<PunchTab> {
                       ? store.rule.companyName
                       : '考勤打卡',
                   style: const TextStyle(
-                      fontSize: 17, fontWeight: FontWeight.w600),
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 const SizedBox(height: 6),
                 Row(
@@ -251,20 +300,26 @@ class _PunchTabState extends ConsumerState<PunchTab> {
                     Text(
                       '上班 ${store.scheduledClockIn}',
                       style: TextStyle(
-                          fontSize: 14, color: AppColors.textSecondary),
+                        fontSize: 14,
+                        color: AppColors.textSecondary,
+                      ),
                     ),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 6),
                       child: Text(
                         '~',
                         style: TextStyle(
-                            fontSize: 14, color: AppColors.textTertiary),
+                          fontSize: 14,
+                          color: AppColors.textTertiary,
+                        ),
                       ),
                     ),
                     Text(
                       '下班 ${store.scheduledClockOut}',
                       style: TextStyle(
-                          fontSize: 14, color: AppColors.textSecondary),
+                        fontSize: 14,
+                        color: AppColors.textSecondary,
+                      ),
                     ),
                   ],
                 ),
@@ -318,22 +373,27 @@ class _PunchTabState extends ConsumerState<PunchTab> {
           // 打卡记录卡片
           Row(
             children: [
-              Expanded(child: _buildRecordCard(
-                label: '上班 (${store.scheduledClockIn})',
-                hasPunched: store.hasClockedIn,
-                time: store.clockInTime,
-                showUpdateHint: false,
-              )),
+              Expanded(
+                child: _buildRecordCard(
+                  label: '上班 (${store.scheduledClockIn})',
+                  hasPunched: store.hasClockedIn,
+                  time: store.clockInTime,
+                  showUpdateHint: false,
+                ),
+              ),
               const SizedBox(width: 12),
-              Expanded(child: _buildRecordCard(
-                label: '下班 (${store.scheduledClockOut})',
-                hasPunched: store.hasClockedOut,
-                time: store.clockOutTime,
-                showUpdateHint: store.hasClockedOut,
-              )),
+              Expanded(
+                child: _buildRecordCard(
+                  label: '下班 (${store.scheduledClockOut})',
+                  hasPunched: store.hasClockedOut,
+                  time: store.clockOutTime,
+                  showUpdateHint: store.hasClockedOut,
+                ),
+              ),
             ],
           ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -367,7 +427,9 @@ class _PunchTabState extends ConsumerState<PunchTab> {
                 height: 22,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: hasPunched ? AppColors.success : const Color(0xFFF2F2F7),
+                  color: hasPunched
+                      ? AppColors.success
+                      : const Color(0xFFF2F2F7),
                   border: hasPunched
                       ? null
                       : Border.all(color: AppColors.textQuaternary, width: 1),
@@ -393,14 +455,18 @@ class _PunchTabState extends ConsumerState<PunchTab> {
                     Text(
                       label,
                       style: TextStyle(
-                          fontSize: 13, color: AppColors.textSecondary),
+                        fontSize: 13,
+                        color: AppColors.textSecondary,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       hasPunched ? '打卡 $time' : '--:--',
                       style: TextStyle(
                         fontSize: 15,
-                        fontWeight: hasPunched ? FontWeight.w600 : FontWeight.normal,
+                        fontWeight: hasPunched
+                            ? FontWeight.w600
+                            : FontWeight.normal,
                         color: hasPunched
                             ? AppColors.textPrimary
                             : AppColors.textQuaternary,

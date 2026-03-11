@@ -1,9 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../services/app_update/app_update_service.dart';
+import '../../../../services/app_update/update_dialog.dart';
 import '../../../auth/providers/auth_provider.dart';
+
+/// 当前版本号 Provider（只读取一次）
+final _currentVersionProvider = FutureProvider<String>((ref) async {
+  final info = await PackageInfo.fromPlatform();
+  return info.version;
+});
 
 /// 个人中心页面 - 对应 src/pages/me/me.vue
 class ProfilePage extends ConsumerWidget {
@@ -14,6 +23,10 @@ class ProfilePage extends ConsumerWidget {
     final userInfo = ref.watch(currentUserProvider);
     final nickname = userInfo?.displayName ?? '用户';
     final phone = userInfo?.phone ?? '';
+    final updateState = ref.watch(appUpdateProvider);
+    final currentVersion = ref.watch(_currentVersionProvider);
+    final isChecking = updateState.status == UpdateStatus.checking;
+    final hasNewVersion = updateState.hasNewVersion;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF2F2F7),
@@ -101,18 +114,20 @@ class ProfilePage extends ConsumerWidget {
               ],
             ),
 
-            // 菜单分组 2: 版本更新
+            // 菜单分组 2: 检查更新
             _MenuSection(
               items: [
                 _MenuItem(
                   icon: Icons.system_update_outlined,
-                  label: '版本更新',
+                  label: '检查更新',
                   isLast: true,
-                  onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('已是最新版本'), duration: Duration(seconds: 1)),
-                    );
-                  },
+                  trailing: _buildVersionTrailing(
+                    currentVersion: currentVersion.valueOrNull ?? '',
+                    isChecking: isChecking,
+                    hasNewVersion: hasNewVersion,
+                    newVersion: updateState.versionInfo?.versionName ?? '',
+                  ),
+                  onTap: isChecking ? null : () => _handleCheckUpdate(context, ref),
                 ),
               ],
             ),
@@ -153,6 +168,89 @@ class ProfilePage extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  /// 版本行右侧内容
+  Widget _buildVersionTrailing({
+    required String currentVersion,
+    required bool isChecking,
+    required bool hasNewVersion,
+    required String newVersion,
+  }) {
+    if (isChecking) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(
+            width: 14,
+            height: 14,
+            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
+          ),
+          const SizedBox(width: 6),
+          Text('检查中', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+        ],
+      );
+    }
+
+    if (hasNewVersion) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              color: AppColors.error.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: const BoxDecoration(
+                    color: AppColors.error,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  '新版本 v$newVersion',
+                  style: const TextStyle(fontSize: 12, color: AppColors.error, fontWeight: FontWeight.w500),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (currentVersion.isNotEmpty) {
+      return Text(
+        'v$currentVersion',
+        style: TextStyle(fontSize: 13, color: AppColors.textTertiary),
+      );
+    }
+
+    return const SizedBox.shrink();
+  }
+
+  void _handleCheckUpdate(BuildContext context, WidgetRef ref) async {
+    final notifier = ref.read(appUpdateProvider.notifier);
+    final info = await notifier.checkUpdate();
+    if (!context.mounted) return;
+
+    if (info != null && info.hasUpdate) {
+      showUpdateDialog(context, info);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('当前已是最新版本'),
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   void _handleLogout(BuildContext context, WidgetRef ref) {
@@ -214,12 +312,14 @@ class _MenuItem extends StatelessWidget {
   final String label;
   final bool isLast;
   final VoidCallback? onTap;
+  final Widget? trailing;
 
   const _MenuItem({
     required this.icon,
     required this.label,
     this.isLast = false,
     this.onTap,
+    this.trailing,
   });
 
   @override
@@ -249,6 +349,10 @@ class _MenuItem extends StatelessWidget {
                 style: const TextStyle(fontSize: 16),
               ),
             ),
+            if (trailing != null) ...[
+              trailing!,
+              const SizedBox(width: 4),
+            ],
             Icon(Icons.chevron_right, size: 18, color: AppColors.textTertiary),
           ],
         ),

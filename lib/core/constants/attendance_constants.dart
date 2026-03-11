@@ -18,9 +18,9 @@ class DefaultAttendanceRule {
   static const String workStartTime = '09:00';
   static const String workEndTime = '18:00';
   static const int lateGraceMinutes = 0;
-  static const double fenceLat = 30.457416;
-  static const double fenceLng = 114.410632;
-  static const int fenceRadius = 250; // meters
+  static const double fenceLat = 30.457414;
+  static const double fenceLng = 114.410336;
+  static const int fenceRadius = 500; // meters
   static const List<String> wifiNames = [];
   static const bool requirePhoto = false;
 }

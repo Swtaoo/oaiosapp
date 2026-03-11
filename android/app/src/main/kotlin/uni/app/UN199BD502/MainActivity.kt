@@ -1,13 +1,18 @@
-﻿package com.jibaikang.oa_flutter
+package uni.app.UN199BD502
 
 import android.Manifest
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import com.amap.api.location.AMapLocation
 import com.amap.api.location.AMapLocationClient
 import com.amap.api.location.AMapLocationClientOption
@@ -15,16 +20,23 @@ import com.amap.api.location.AMapLocationListener
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import io.flutter.plugins.GeneratedPluginRegistrant
+import io.flutter.plugins.webviewflutter.WebViewFlutterPlugin
+import java.io.File
 
 class MainActivity : FlutterActivity() {
     companion object {
         private const val CHANNEL = "oa/location"
+        private const val INSTALL_CHANNEL = "oa/install"
         private const val REQUEST_LOCATION_PERMISSION = 2001
+        private const val REQUEST_INSTALL_PERMISSION = 2002
         private const val LOCATION_TIMEOUT_MS = 15000L
     }
 
     private var permissionResult: MethodChannel.Result? = null
     private var locationResult: MethodChannel.Result? = null
+    private var installPermissionResult: MethodChannel.Result? = null
+    private var pendingInstallPath: String? = null
     private var locationClient: AMapLocationClient? = null
     private val mainHandler = Handler(Looper.getMainLooper())
     private var locationTimeoutTask: Runnable? = null
@@ -54,6 +66,10 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
+        if (!flutterEngine.plugins.has(WebViewFlutterPlugin::class.java)) {
+            GeneratedPluginRegistrant.registerWith(flutterEngine)
+        }
+
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
@@ -61,6 +77,21 @@ class MainActivity : FlutterActivity() {
                     "checkPermission" -> result.success(checkPermissionStatus())
                     "requestPermission" -> requestLocationPermission(result)
                     "getCurrentPosition" -> getCurrentPosition(result)
+                    else -> result.notImplemented()
+                }
+            }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, INSTALL_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "installApk" -> {
+                        val filePath = call.argument<String>("filePath")
+                        if (filePath == null) {
+                            result.error("INVALID_ARG", "filePath is required", null)
+                        } else {
+                            installApk(filePath, result)
+                        }
+                    }
                     else -> result.notImplemented()
                 }
             }
@@ -159,7 +190,8 @@ class MainActivity : FlutterActivity() {
         val client = ensureLocationClient()
         val option = AMapLocationClientOption().apply {
             locationMode = AMapLocationClientOption.AMapLocationMode.Hight_Accuracy
-            isNeedAddress = true
+            // Flutter 侧会调用 WebService 逆地理编码获取地址，原生定位只需返回坐标即可，减少一次地址解析耗时
+            isNeedAddress = false
             isOnceLocation = true
             isOnceLocationLatest = true
             httpTimeOut = LOCATION_TIMEOUT_MS
@@ -207,5 +239,69 @@ class MainActivity : FlutterActivity() {
         val result = locationResult ?: return
         locationResult = null
         result.error(code, message, null)
+    }
+
+    // APK 安装流程
+    private fun installApk(filePath: String, result: MethodChannel.Result) {
+        val file = File(filePath)
+        if (!file.exists()) {
+            result.error("FILE_NOT_FOUND", "APK file not found: $filePath", null)
+            return
+        }
+
+        // Android 8.0+ 需要检查"安装未知来源"权限
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+            !packageManager.canRequestPackageInstalls()
+        ) {
+            // 保存状态，等用户从设置页返回后继续安装
+            installPermissionResult = result
+            pendingInstallPath = filePath
+            val intent = Intent(
+                Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                Uri.parse("package:$packageName"),
+            )
+            startActivityForResult(intent, REQUEST_INSTALL_PERMISSION)
+            return
+        }
+
+        doInstallApk(file, result)
+    }
+
+    private fun doInstallApk(file: File, result: MethodChannel.Result) {
+        try {
+            val uri = FileProvider.getUriForFile(
+                this,
+                "$packageName.fileProvider.com.crazecoder.openfile",
+                file,
+            )
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "application/vnd.android.package-archive")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            startActivity(intent)
+            result.success(true)
+        } catch (e: Exception) {
+            result.error("INSTALL_ERROR", e.message, null)
+        }
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQUEST_INSTALL_PERMISSION) {
+            val result = installPermissionResult ?: return
+            val path = pendingInstallPath
+            installPermissionResult = null
+            pendingInstallPath = null
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+                packageManager.canRequestPackageInstalls() &&
+                path != null
+            ) {
+                doInstallApk(File(path), result)
+            } else {
+                result.error("PERMISSION_DENIED", "用户未授权安装未知来源应用", null)
+            }
+        }
     }
 }

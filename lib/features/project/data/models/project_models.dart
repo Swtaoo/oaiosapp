@@ -89,6 +89,7 @@ class ChatRecordVo {
   final int? id;
   final int? projectId;
   final int? personnelId;
+  final String? personnelName;
   final String? chatContent;
   final int? replyId;
   final String? replyContent;
@@ -99,6 +100,7 @@ class ChatRecordVo {
   final int? fileType;
   final String? fileName;
   final int? fileSize;
+  final String? atPersonnelIds;
   final int? delFlag;
   final String? createTime;
   final String? updateTime;
@@ -110,6 +112,7 @@ class ChatRecordVo {
     this.id,
     this.projectId,
     this.personnelId,
+    this.personnelName,
     this.chatContent,
     this.replyId,
     this.replyContent,
@@ -120,6 +123,7 @@ class ChatRecordVo {
     this.fileType,
     this.fileName,
     this.fileSize,
+    this.atPersonnelIds,
     this.delFlag,
     this.createTime,
     this.updateTime,
@@ -130,6 +134,7 @@ class ChatRecordVo {
     int? id,
     int? projectId,
     int? personnelId,
+    String? personnelName,
     String? chatContent,
     int? replyId,
     String? replyContent,
@@ -140,6 +145,7 @@ class ChatRecordVo {
     int? fileType,
     String? fileName,
     int? fileSize,
+    String? atPersonnelIds,
     int? delFlag,
     String? createTime,
     String? updateTime,
@@ -149,6 +155,7 @@ class ChatRecordVo {
       id: id ?? this.id,
       projectId: projectId ?? this.projectId,
       personnelId: personnelId ?? this.personnelId,
+      personnelName: personnelName ?? this.personnelName,
       chatContent: chatContent ?? this.chatContent,
       replyId: replyId ?? this.replyId,
       replyContent: replyContent ?? this.replyContent,
@@ -159,6 +166,7 @@ class ChatRecordVo {
       fileType: fileType ?? this.fileType,
       fileName: fileName ?? this.fileName,
       fileSize: fileSize ?? this.fileSize,
+      atPersonnelIds: atPersonnelIds ?? this.atPersonnelIds,
       delFlag: delFlag ?? this.delFlag,
       createTime: createTime ?? this.createTime,
       updateTime: updateTime ?? this.updateTime,
@@ -171,6 +179,7 @@ class ChatRecordVo {
       id: json['id'] as int?,
       projectId: json['projectId'] as int?,
       personnelId: json['personnelId'] as int?,
+      personnelName: json['personnelName'] as String?,
       chatContent: json['chatContent'] as String?,
       replyId: json['replyId'] as int?,
       replyContent: json['replyContent'] as String?,
@@ -181,6 +190,7 @@ class ChatRecordVo {
       fileType: json['fileType'] as int?,
       fileName: json['fileName'] as String?,
       fileSize: json['fileSize'] as int?,
+      atPersonnelIds: json['atPersonnelIds'] as String?,
       delFlag: json['delFlag'] as int?,
       createTime: json['createTime'] as String?,
       updateTime: json['updateTime'] as String?,

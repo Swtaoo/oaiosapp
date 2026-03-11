@@ -5,8 +5,10 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../data/models/approval_models.dart';
 import '../../providers/approval_provider.dart';
+import '../../../auth/providers/auth_provider.dart';
 import '../../../project/data/models/project_models.dart';
 import '../../../project/providers/project_providers.dart';
+import '../../../register/presentation/widgets/oss_upload.dart';
 
 /// 资金申请页 - 对应 src/pages/approval/apply.vue
 class FundApplyPage extends ConsumerStatefulWidget {
@@ -25,6 +27,7 @@ class _FundApplyPageState extends ConsumerState<FundApplyPage> {
   final _accountNumberCtrl = TextEditingController();
   final _bankNameCtrl = TextEditingController();
   final _contactPersonCtrl = TextEditingController();
+  final List<String> _attachmentUrls = [];
   bool _submitting = false;
 
   List<ProjectInfoVo> _projects = [];
@@ -33,7 +36,7 @@ class _FundApplyPageState extends ConsumerState<FundApplyPage> {
   @override
   void initState() {
     super.initState();
-    _autoFillUserInfo();
+    _loadCurrentUserContext();
     _loadProjects();
   }
 
@@ -50,14 +53,41 @@ class _FundApplyPageState extends ConsumerState<FundApplyPage> {
     super.dispose();
   }
 
-  Future<void> _autoFillUserInfo() async {
+  String get _applicantName {
+    final fromForm = _applicantCtrl.text.trim();
+    if (fromForm.isNotEmpty) return fromForm;
+    return ref.read(currentUserProvider)?.displayName.trim() ?? '';
+  }
+
+  Future<void> _loadCurrentUserContext() async {
+    final currentUser = ref.read(currentUserProvider);
+    final userId = currentUser?.effectiveUserId ?? -1;
+    final userName = currentUser?.displayName.trim() ?? '';
+
+    if (userName.isNotEmpty) {
+      _applicantCtrl.text = userName;
+    }
+    if (userId <= 0) return;
+    if (_applyDepartmentCtrl.text.trim().isNotEmpty) return;
+
     try {
       final api = ref.read(approvalApiProvider);
       final res = await api.getPersonnelList(pageSize: 1000);
-      if (res.isSuccess && res.rows != null) {
-        // TODO: 匹配当前用户自动填充 applicant + applyDepartment
+      if (!res.isSuccess || res.rows == null) return;
+
+      String department = '';
+      for (final person in res.rows!) {
+        if (person.id == userId) {
+          department = person.department?.trim() ?? '';
+          break;
+        }
       }
-    } catch (e) { debugPrint('[fund_apply_page] Error: $e'); }
+      if (department.isNotEmpty) {
+        _applyDepartmentCtrl.text = department;
+      }
+    } catch (e) {
+      debugPrint('[fund_apply_page] _loadCurrentUserContext error: $e');
+    }
   }
 
   Future<void> _loadProjects() async {
@@ -74,11 +104,11 @@ class _FundApplyPageState extends ConsumerState<FundApplyPage> {
 
   bool _validate() {
     if (_applyDepartmentCtrl.text.trim().isEmpty) {
-      _showToast('请输入申请部门');
+      _showToast('未获取到当前用户部门');
       return false;
     }
-    if (_applicantCtrl.text.trim().isEmpty) {
-      _showToast('请输入申请人');
+    if (_applicantName.isEmpty) {
+      _showToast('未获取到当前用户');
       return false;
     }
     final amount = double.tryParse(_applyAmountCtrl.text.trim()) ?? 0;
@@ -100,6 +130,7 @@ class _FundApplyPageState extends ConsumerState<FundApplyPage> {
   }
 
   Future<void> _handleSubmit() async {
+    await _loadCurrentUserContext();
     if (!_validate()) return;
 
     setState(() => _submitting = true);
@@ -107,7 +138,7 @@ class _FundApplyPageState extends ConsumerState<FundApplyPage> {
       final api = ref.read(approvalApiProvider);
       final data = FundApplicationSubmit(
         applyDepartment: _applyDepartmentCtrl.text.trim(),
-        applicant: _applicantCtrl.text.trim(),
+        applicant: _applicantName,
         applyAmount: double.parse(_applyAmountCtrl.text.trim()),
         fundProject: _selectedProject!.projectName ?? '',
         fundCostDesc: _fundCostDescCtrl.text.trim(),
@@ -115,6 +146,7 @@ class _FundApplyPageState extends ConsumerState<FundApplyPage> {
         accountNumber: _accountNumberCtrl.text.trim(),
         bankName: _bankNameCtrl.text.trim(),
         contactPerson: _contactPersonCtrl.text.trim(),
+        attachment: _attachmentUrls.isEmpty ? null : _attachmentUrls.join(','),
       );
       final res = await api.createFundApplication(data);
       if (res.isSuccess && mounted) {
@@ -159,25 +191,13 @@ class _FundApplyPageState extends ConsumerState<FundApplyPage> {
           children: [
             // 基本信息
             _buildCard(
-              title: '基本信息',
+              title: '申请金额',
+              hint: '必填',
               children: [
-                _buildFormField(
-                  label: '申请部门',
-                  required: true,
-                  child: _textField(_applyDepartmentCtrl, '请输入申请部门'),
-                ),
-                _buildFormField(
-                  label: '申请人',
-                  child: _readonlyField(_applicantCtrl.text.isNotEmpty
-                      ? _applicantCtrl.text
-                      : '-'),
-                ),
-                _buildFormField(
-                  label: '申请金额',
-                  required: true,
-                  child: _textField(_applyAmountCtrl, '请输入金额',
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true)),
+                _textField(
+                  _applyAmountCtrl,
+                  '请输入金额',
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 ),
               ],
             ),
@@ -223,6 +243,39 @@ class _FundApplyPageState extends ConsumerState<FundApplyPage> {
                   label: '联系人',
                   child: _textField(_contactPersonCtrl, '请输入联系人'),
                 ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // 附件
+            _buildCard(
+              title: '附件',
+              children: [
+                _buildFormField(
+                  label: '上传附件（可选）',
+                  child: OssUpload(
+                    maxCount: 5,
+                    addButtonText: '上传图片',
+                    onSuccess: (result) {
+                      if (_attachmentUrls.contains(result.url)) return;
+                      setState(() => _attachmentUrls.add(result.url));
+                    },
+                    onRemove: (item) {
+                      setState(() => _attachmentUrls.remove(item.url));
+                    },
+                  ),
+                ),
+                if (_attachmentUrls.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      '已上传 ${_attachmentUrls.length} 张',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textTertiary,
+                      ),
+                    ),
+                  ),
               ],
             ),
           ],
@@ -319,7 +372,9 @@ class _FundApplyPageState extends ConsumerState<FundApplyPage> {
                         hint,
                         style: TextStyle(
                           fontSize: 12,
-                          color: AppColors.textTertiary,
+                          color: hint.contains('必填')
+                              ? AppColors.error
+                              : AppColors.textTertiary,
                         ),
                       ),
                     ],
@@ -608,18 +663,4 @@ class _FundApplyPageState extends ConsumerState<FundApplyPage> {
     );
   }
 
-  Widget _readonlyField(String value) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF2F2F7),
-        borderRadius: BorderRadius.circular(9),
-      ),
-      child: Text(
-        value,
-        style: const TextStyle(fontSize: 15, color: Colors.black),
-      ),
-    );
-  }
 }

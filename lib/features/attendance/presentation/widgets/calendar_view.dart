@@ -50,15 +50,20 @@ class _CalendarViewState extends State<CalendarView> {
     final prevLastDay = DateTime(prevYear, prevMonth + 1, 0).day;
     for (var i = startWeekDay - 1; i >= 0; i--) {
       final d = prevLastDay - i;
-      days.add(_CalendarDay(
-        date: '$prevYear-${prevMonth.toString().padLeft(2, '0')}-${d.toString().padLeft(2, '0')}',
-        day: d,
-        isCurrentMonth: false,
-        isToday: false,
-        status: 'none',
-        hasClockIn: false,
-        hasClockOut: false,
-      ));
+      days.add(
+        _CalendarDay(
+          date:
+              '$prevYear-${prevMonth.toString().padLeft(2, '0')}-${d.toString().padLeft(2, '0')}',
+          day: d,
+          isCurrentMonth: false,
+          isToday: false,
+          status: 'none',
+          hasClockIn: false,
+          hasClockOut: false,
+          isClockInFieldWork: false,
+          isClockOutFieldWork: false,
+        ),
+      );
     }
 
     // 当月
@@ -68,15 +73,15 @@ class _CalendarViewState extends State<CalendarView> {
       final record = widget.records.where((r) => r.date == dateStr).firstOrNull;
       var status = 'none';
       if (record != null) {
-        if (record.scheduleType == 'rest' ||
-            record.scheduleType == 'holiday') {
+        if (record.scheduleType == 'rest' || record.scheduleType == 'holiday') {
           status = 'rest';
         } else if (record.anomalies.isNotEmpty) {
-          if (record.anomalies.contains('迟到')) {
+          if (record.anomalies.contains('late')) {
             status = 'late';
-          } else if (record.anomalies.contains('早退')) {
+          } else if (record.anomalies.contains('early')) {
             status = 'early';
-          } else if (record.anomalies.contains('缺卡')) {
+          } else if (record.anomalies.contains('missing_clock_in') ||
+              record.anomalies.contains('missing_clock_out')) {
             status = 'absent';
           } else {
             status = 'normal';
@@ -87,15 +92,21 @@ class _CalendarViewState extends State<CalendarView> {
         }
       }
 
-      days.add(_CalendarDay(
-        date: dateStr,
-        day: d,
-        isCurrentMonth: true,
-        isToday: dateStr == today,
-        status: status,
-        hasClockIn: record?.clockInRecord != null,
-        hasClockOut: record?.clockOutRecord != null,
-      ));
+      days.add(
+        _CalendarDay(
+          date: dateStr,
+          day: d,
+          isCurrentMonth: true,
+          isToday: dateStr == today,
+          status: status,
+          hasClockIn: record?.clockInRecord != null,
+          hasClockOut: record?.clockOutRecord != null,
+          isClockInFieldWork: record?.clockInRecord?.punchType == 1,
+          isClockOutFieldWork: record?.clockOutRecord?.punchType == 1,
+          isLate: record?.anomalies.contains('late') ?? false,
+          isEarlyLeave: record?.anomalies.contains('early') ?? false,
+        ),
+      );
     }
 
     // 下月填充
@@ -103,15 +114,20 @@ class _CalendarViewState extends State<CalendarView> {
     final nextMonth = month == 12 ? 1 : month + 1;
     final nextYear = month == 12 ? year + 1 : year;
     for (var d = 1; d <= remaining; d++) {
-      days.add(_CalendarDay(
-        date: '$nextYear-${nextMonth.toString().padLeft(2, '0')}-${d.toString().padLeft(2, '0')}',
-        day: d,
-        isCurrentMonth: false,
-        isToday: false,
-        status: 'none',
-        hasClockIn: false,
-        hasClockOut: false,
-      ));
+      days.add(
+        _CalendarDay(
+          date:
+              '$nextYear-${nextMonth.toString().padLeft(2, '0')}-${d.toString().padLeft(2, '0')}',
+          day: d,
+          isCurrentMonth: false,
+          isToday: false,
+          status: 'none',
+          hasClockIn: false,
+          hasClockOut: false,
+          isClockInFieldWork: false,
+          isClockOutFieldWork: false,
+        ),
+      );
     }
 
     return days;
@@ -167,6 +183,13 @@ class _CalendarViewState extends State<CalendarView> {
     return null;
   }
 
+  Color _getSubLabelColor(_CalendarDay day) {
+    if (_selectedDate == day.date) return Colors.white;
+    if (!day.isCurrentMonth) return AppColors.textQuaternary;
+    if (day.status == 'rest') return AppColors.textTertiary;
+    return AppColors.textSecondary;
+  }
+
   @override
   Widget build(BuildContext context) {
     final days = _calendarDays;
@@ -202,8 +225,11 @@ class _CalendarViewState extends State<CalendarView> {
                     color: const Color(0xFFF2F2F7),
                     borderRadius: BorderRadius.circular(4),
                   ),
-                  child: Icon(Icons.chevron_left,
-                      size: 18, color: AppColors.textSecondary),
+                  child: Icon(
+                    Icons.chevron_left,
+                    size: 18,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ),
               Padding(
@@ -211,7 +237,9 @@ class _CalendarViewState extends State<CalendarView> {
                 child: Text(
                   '${widget.currentYear}年${widget.currentMonth}月',
                   style: const TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.w600),
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
               GestureDetector(
@@ -224,8 +252,11 @@ class _CalendarViewState extends State<CalendarView> {
                     color: const Color(0xFFF2F2F7),
                     borderRadius: BorderRadius.circular(4),
                   ),
-                  child: Icon(Icons.chevron_right,
-                      size: 18, color: AppColors.textSecondary),
+                  child: Icon(
+                    Icons.chevron_right,
+                    size: 18,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ),
             ],
@@ -235,14 +266,18 @@ class _CalendarViewState extends State<CalendarView> {
           // 星期头
           Row(
             children: _weekDays
-                .map((w) => Expanded(
-                      child: Text(
-                        w,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                            fontSize: 12, color: AppColors.textTertiary),
+                .map(
+                  (w) => Expanded(
+                    child: Text(
+                      w,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textTertiary,
                       ),
-                    ))
+                    ),
+                  ),
+                )
                 .toList(),
           ),
           const SizedBox(height: 6),
@@ -271,13 +306,24 @@ class _CalendarViewState extends State<CalendarView> {
                         '${day.day}',
                         style: TextStyle(
                           fontSize: 14,
-                          fontWeight: day.isToday ||
-                                  _selectedDate == day.date
+                          fontWeight: day.isToday || _selectedDate == day.date
                               ? FontWeight.w600
                               : FontWeight.normal,
                           color: _getDayColor(day),
                         ),
                       ),
+                      if (day.isCurrentMonth && day.status == 'rest')
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(
+                            '休息',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w400,
+                              color: _getSubLabelColor(day),
+                            ),
+                          ),
+                        ),
                       if (day.isCurrentMonth &&
                           day.status != 'none' &&
                           day.status != 'rest')
@@ -291,7 +337,9 @@ class _CalendarViewState extends State<CalendarView> {
                                 margin: const EdgeInsets.only(top: 2, right: 2),
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
-                                  color: AppColors.primary,
+                                  color: (day.isClockInFieldWork || day.isLate)
+                                      ? AppColors.warning
+                                      : AppColors.success,
                                 ),
                               ),
                             if (day.hasClockOut)
@@ -301,7 +349,11 @@ class _CalendarViewState extends State<CalendarView> {
                                 margin: const EdgeInsets.only(top: 2),
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
-                                  color: AppColors.success,
+                                  color:
+                                      (day.isClockOutFieldWork ||
+                                          day.isEarlyLeave)
+                                      ? AppColors.warning
+                                      : AppColors.success,
                                 ),
                               ),
                           ],
@@ -316,20 +368,18 @@ class _CalendarViewState extends State<CalendarView> {
           // 底部图例
           Padding(
             padding: const EdgeInsets.only(top: 10),
-            child: Divider(
-                height: 1, color: AppColors.separatorNonOpaque),
+            child: Divider(height: 1, color: AppColors.separatorNonOpaque),
           ),
           Padding(
             padding: const EdgeInsets.only(top: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+            child: Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 14,
+              runSpacing: 6,
               children: [
                 _legendItem(AppColors.success, '正常'),
-                const SizedBox(width: 16),
-                _legendItem(AppColors.warning, '迟到/早退'),
-                const SizedBox(width: 16),
+                _legendItem(AppColors.warning, '外勤/迟到早退'),
                 _legendItem(AppColors.error, '缺卡'),
-                const SizedBox(width: 16),
                 _legendItem(AppColors.neutral300, '休息'),
               ],
             ),
@@ -366,6 +416,10 @@ class _CalendarDay {
   final String status;
   final bool hasClockIn;
   final bool hasClockOut;
+  final bool isClockInFieldWork;
+  final bool isClockOutFieldWork;
+  final bool isLate;
+  final bool isEarlyLeave;
 
   const _CalendarDay({
     required this.date,
@@ -375,5 +429,9 @@ class _CalendarDay {
     required this.status,
     required this.hasClockIn,
     required this.hasClockOut,
+    required this.isClockInFieldWork,
+    required this.isClockOutFieldWork,
+    this.isLate = false,
+    this.isEarlyLeave = false,
   });
 }

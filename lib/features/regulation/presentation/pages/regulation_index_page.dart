@@ -1,16 +1,23 @@
-﻿// 规章制度首页 - 对应 src/pages/rules/index.vue
+// 规章制度首页 - 对应 src/pages/rules/index.vue
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/network/dio_client.dart';
+import '../../../../core/storage/secure_storage.dart';
 import '../../../../core/constants/api_constants.dart';
+import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/theme/app_typography.dart';
 import '../../data/api/regulation_api.dart';
 import '../../data/models/regulation_models.dart';
 
 final _regulationApiProvider = Provider<RegulationApi>((ref) {
-  return RegulationApi(ref.watch(dioProvider));
+  return RegulationApi(
+    ref.watch(dioProvider),
+    ref.watch(secureStorageProvider),
+  );
 });
 
 class RegulationIndexPage extends ConsumerStatefulWidget {
@@ -29,31 +36,19 @@ class _RegulationIndexPageState extends ConsumerState<RegulationIndexPage> {
   int _currentPage = 1;
   static const _pageSize = 10;
 
-  static const _topCards = [
-    _CategoryCard(
-      title: '岗位职责',
-      icon: Icons.assignment,
-      regulationType: 1,
-      gradientColors: [Color(0xFFB8C5E3), Color(0xFFC8B0D8)],
-    ),
-    _CategoryCard(
-      title: '行为规范',
-      icon: Icons.bar_chart,
-      regulationType: 2,
-      gradientColors: [Color(0xFFE8C5EF), Color(0xFFF0A2B5)],
-    ),
-    _CategoryCard(
-      title: '员工福利',
-      icon: Icons.card_giftcard,
-      regulationType: 3,
-      gradientColors: [Color(0xFFA0C8E8), Color(0xFF7CD8E8)],
-    ),
-  ];
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
 
   @override
   void initState() {
     super.initState();
     _loadData(isRefresh: true);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadData({bool isRefresh = false}) async {
@@ -72,6 +67,7 @@ class _RegulationIndexPageState extends ConsumerState<RegulationIndexPage> {
       final res = await api.getList(
         pageNum: _currentPage,
         pageSize: _pageSize,
+        fileName: _searchQuery.isNotEmpty ? _searchQuery : null,
         isAsc: 'desc',
       );
       if (res.isSuccess) {
@@ -89,7 +85,8 @@ class _RegulationIndexPageState extends ConsumerState<RegulationIndexPage> {
           }
         });
       }
-    } catch (e, st) { debugPrint('[regulation_index_page] Error: $e\n$st');
+    } catch (e, st) {
+      debugPrint('[regulation_index_page] Error: $e\n$st');
     } finally {
       if (mounted) {
         setState(() {
@@ -134,8 +131,28 @@ class _RegulationIndexPageState extends ConsumerState<RegulationIndexPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF2F2F7),
-      appBar: AppBar(title: const Text('规章制度')),
+      backgroundColor: AppColors.backgroundGroupedPrimary,
+      appBar: AppBar(
+        title: const Text('规章制度'),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: TextButton.icon(
+              onPressed: () => context.push(
+                '/regulation/ai?title=AI%E9%97%AE%E5%88%B6%E5%BA%A6',
+              ),
+              icon: const Icon(Icons.auto_awesome_outlined, size: 18),
+              label: const Text('AI问制度'),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                textStyle: AppTypography.caption1.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
       body: NotificationListener<ScrollNotification>(
         onNotification: (notification) {
           if (notification is ScrollEndNotification &&
@@ -149,8 +166,9 @@ class _RegulationIndexPageState extends ConsumerState<RegulationIndexPage> {
           onRefresh: () => _loadData(isRefresh: true),
           child: CustomScrollView(
             slivers: [
-              // 三个分类卡片
-              SliverToBoxAdapter(child: _buildTopCards()),
+              // 搜索框
+              SliverToBoxAdapter(child: _buildSearchBar()),
+              SliverToBoxAdapter(child: _buildAiEntryCard()),
               // 列表
               if (_isLoading)
                 const SliverFillRemaining(
@@ -159,9 +177,10 @@ class _RegulationIndexPageState extends ConsumerState<RegulationIndexPage> {
               else if (_list.isEmpty)
                 const SliverFillRemaining(
                   child: Center(
-                    child: Text('暂无规章制度',
-                        style: TextStyle(
-                            fontSize: 14, color: Color(0xFF9CA3AF))),
+                    child: Text(
+                      '暂无规章制度',
+                      style: TextStyle(fontSize: 14, color: Color(0xFF9CA3AF)),
+                    ),
                   ),
                 )
               else ...[
@@ -182,11 +201,12 @@ class _RegulationIndexPageState extends ConsumerState<RegulationIndexPage> {
                     child: Padding(
                       padding: EdgeInsets.all(16),
                       child: Center(
-                          child: SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )),
+                        child: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
                     ),
                   ),
                 if (_finished && _list.isNotEmpty)
@@ -194,9 +214,13 @@ class _RegulationIndexPageState extends ConsumerState<RegulationIndexPage> {
                     child: Padding(
                       padding: EdgeInsets.all(16),
                       child: Center(
-                        child: Text('没有更多数据了',
-                            style: TextStyle(
-                                fontSize: 12, color: Color(0xFFC7C7CC))),
+                        child: Text(
+                          '没有更多数据了',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFFC7C7CC),
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -208,57 +232,116 @@ class _RegulationIndexPageState extends ConsumerState<RegulationIndexPage> {
     );
   }
 
-  Widget _buildTopCards() {
+  void _onSearchChanged(String value) {
+    _searchQuery = value.trim();
+    _loadData(isRefresh: true);
+  }
+
+  Widget _buildSearchBar() {
     return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        children: _topCards.map((card) {
-          return Expanded(
-            child: GestureDetector(
-              onTap: () => context.push(
-                '/regulation/classification?title=${Uri.encodeComponent(card.title)}&regulationType=${card.regulationType}',
-              ),
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 4),
-                padding: const EdgeInsets.symmetric(vertical: 24),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: card.gradientColors,
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      child: TextField(
+        controller: _searchController,
+        onChanged: _onSearchChanged,
+        decoration: InputDecoration(
+          hintText: '搜索文件名称',
+          hintStyle: const TextStyle(fontSize: 14, color: Color(0xFF9CA3AF)),
+          prefixIcon: const Icon(
+            Icons.search,
+            size: 20,
+            color: Color(0xFF9CA3AF),
+          ),
+          suffixIcon: ValueListenableBuilder<TextEditingValue>(
+            valueListenable: _searchController,
+            builder: (_, value, _) {
+              if (value.text.isEmpty) return const SizedBox.shrink();
+              return GestureDetector(
+                onTap: () {
+                  _searchController.clear();
+                  _onSearchChanged('');
+                },
+                child: const Icon(
+                  Icons.close,
+                  size: 18,
+                  color: Color(0xFF9CA3AF),
+                ),
+              );
+            },
+          ),
+          filled: true,
+          fillColor: Colors.white,
+          contentPadding: const EdgeInsets.symmetric(vertical: 0),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide.none,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAiEntryCard() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+      child: Material(
+        color: AppColors.backgroundPrimary,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: () => context.push(
+            '/regulation/ai?title=AI%E9%97%AE%E5%88%B6%E5%BA%A6',
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.cardPaddingMd),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary50,
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.08),
-                      blurRadius: 10,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
+                  child: const Icon(
+                    Icons.auto_awesome_outlined,
+                    color: AppColors.primary,
+                  ),
                 ),
-                child: Column(
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.2),
-                        shape: BoxShape.circle,
+                const SizedBox(width: AppSpacing.s12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'AI问制度',
+                        style: AppTypography.subheadline.copyWith(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                      child: Icon(card.icon, color: Colors.white, size: 20),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(card.title,
-                        style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white)),
-                  ],
+                      const SizedBox(height: AppSpacing.s4),
+                      Text(
+                        '输入问题，AI 会结合制度内容和引用依据回答。',
+                        style: AppTypography.caption1.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
+                const Icon(Icons.chevron_right, color: AppColors.textTertiary),
+              ],
             ),
-          );
-        }).toList(),
+          ),
+        ),
       ),
     );
   }
@@ -293,64 +376,66 @@ class _RegulationIndexPageState extends ConsumerState<RegulationIndexPage> {
                 color: const Color(0xFFF3F4F6),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(Icons.description,
-                  size: 20, color: Color(0xFF6B7280)),
+              child: const Icon(
+                Icons.description,
+                size: 20,
+                color: Color(0xFF6B7280),
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(_displayFileName(reg),
-                      style: const TextStyle(
-                          fontSize: 14, fontWeight: FontWeight.w600),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis),
+                  Text(
+                    _displayFileName(reg),
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                   const SizedBox(height: 4),
                   Row(
                     children: [
                       if (reg.regulationTypeName != null)
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 2),
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: const Color(0xFFF3F4F6),
                             borderRadius: BorderRadius.circular(4),
                           ),
-                          child: Text(reg.regulationTypeName!,
-                              style: const TextStyle(
-                                  fontSize: 11, color: Color(0xFF6B7280))),
+                          child: Text(
+                            reg.regulationTypeName!,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFF6B7280),
+                            ),
+                          ),
                         ),
                       if (reg.updateTime != null) ...[
                         const SizedBox(width: 8),
-                        Text(_formatDate(reg.updateTime),
-                            style: const TextStyle(
-                                fontSize: 11, color: Color(0xFF9CA3AF))),
+                        Text(
+                          _formatDate(reg.updateTime),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF9CA3AF),
+                          ),
+                        ),
                       ],
                     ],
                   ),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right,
-                color: Color(0xFFC7C7CC), size: 20),
+            const Icon(Icons.chevron_right, color: Color(0xFFC7C7CC), size: 20),
           ],
         ),
       ),
     );
   }
-}
-
-class _CategoryCard {
-  final String title;
-  final IconData icon;
-  final int regulationType;
-  final List<Color> gradientColors;
-
-  const _CategoryCard({
-    required this.title,
-    required this.icon,
-    required this.regulationType,
-    required this.gradientColors,
-  });
 }

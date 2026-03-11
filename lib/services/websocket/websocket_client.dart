@@ -105,8 +105,8 @@ class WebSocketClient {
       final uri = _buildAuthUrl();
       _channel = WebSocketChannel.connect(uri);
 
-      // 等待连接就绪
-      await _channel!.ready;
+      // 等待连接就绪（带超时保护，防止无限挂起）
+      await _channel!.ready.timeout(const Duration(seconds: 10));
 
       _setStatus(WsStatus.connected);
       _reconnectAttempts = 0;

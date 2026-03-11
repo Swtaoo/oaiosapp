@@ -52,13 +52,18 @@ class AttendanceState {
               wifiNames: DefaultAttendanceRule.wifiNames,
               requirePhoto: DefaultAttendanceRule.requirePhoto,
             ),
-        localPunchData = localPunchData ?? LocalPunchData();
+         localPunchData = localPunchData ?? LocalPunchData();
 
-  bool get hasClockedIn =>
-      todayData?.clockInRecord != null || localPunchData.morningPunch;
+  bool get hasClockedIn {
+    // 后端已返回今日数据时，以后端为准；仅在未拿到后端数据/离线时使用本地缓存兜底
+    if (todayData != null) return todayData!.clockInRecord != null;
+    return localPunchData.morningPunch;
+  }
 
-  bool get hasClockedOut =>
-      todayData?.clockOutRecord != null || localPunchData.eveningPunch;
+  bool get hasClockedOut {
+    if (todayData != null) return todayData!.clockOutRecord != null;
+    return localPunchData.eveningPunch;
+  }
 
   String get clockInTime {
     final record = todayData?.clockInRecord;
@@ -182,8 +187,7 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
       if (res.isSuccess && res.data != null) {
         final data = res.data!;
         final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-        final local = state.localPunchData;
-        local.lastPunchDate = today;
+        final local = LocalPunchData(lastPunchDate: today);
         if (data.clockInRecord != null) {
           local.morningPunch = true;
           final parts = data.clockInRecord!.punchTime.split(' ');
@@ -326,9 +330,11 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
   }
 
   /// 打卡
+  /// [isWithinRange] 是否在围栏范围内，true=正常打卡(0)，false=外勤打卡(1)
   Future<AttendancePunchRecord?> doPunch({
     required String punchLocation,
     required String punchTime,
+    required bool isWithinRange,
   }) async {
     if (_userId <= 0) throw Exception('用户未登录');
 
@@ -339,6 +345,7 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
       punchTime: punchTime,
       userId: _userId,
       punchCategory: alreadyClockedIn ? 1 : 0,
+      punchType: isWithinRange ? 0 : 1,
     );
 
     if (res.isSuccess) {

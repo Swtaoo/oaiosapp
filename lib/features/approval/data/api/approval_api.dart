@@ -9,6 +9,28 @@ class ApprovalApi {
 
   ApprovalApi(this._dio);
 
+  // ========== 通用能力 ==========
+
+  /// 上传文件到 OSS
+  /// POST /resource/oss/upload
+  /// 返回 {ossId, url}
+  Future<ApiResponse<Map<String, dynamic>>> uploadToOss(
+    String filePath, {
+    String? fileName,
+  }) async {
+    final formData = FormData.fromMap({
+      'file': await MultipartFile.fromFile(filePath, filename: fileName),
+    });
+    final response = await _dio.post(
+      '/resource/oss/upload',
+      data: formData,
+    );
+    return ApiResponse.fromJson(
+      ensureJsonMap(response.data),
+      (json) => json as Map<String, dynamic>,
+    );
+  }
+
   // ========== 审批流程 ==========
 
   /// 查询我的待审批列表
@@ -169,6 +191,68 @@ class ApprovalApi {
 
   // ========== 报销 ==========
 
+  /// 查询报销主表列表
+  /// GET /oa/reimbursement/list
+  Future<PaginatedResponse<ReimbursementVo>> getReimbursementList({
+    int pageNum = 1,
+    int pageSize = 10,
+    int? departmentId,
+    int? applicantId,
+    int? reimbursementProjectId,
+    num? totalAmount,
+    String? applyDate,
+    String? status,
+  }) async {
+    final response = await _dio.get(
+      '/oa/reimbursement/list',
+      queryParameters: {
+        'pageNum': pageNum,
+        'pageSize': pageSize,
+        if (departmentId != null) 'departmentId': departmentId,
+        if (applicantId != null) 'applicantId': applicantId,
+        if (reimbursementProjectId != null)
+          'reimbursementProjectId': reimbursementProjectId,
+        if (totalAmount != null) 'totalAmount': totalAmount,
+        if (applyDate != null && applyDate.isNotEmpty) 'applyDate': applyDate,
+        if (status != null && status.isNotEmpty) 'status': status,
+      },
+    );
+    return PaginatedResponse.fromJson(
+      ensureJsonMap(response.data),
+      (json) => ReimbursementVo.fromJson(json as Map<String, dynamic>),
+    );
+  }
+
+  /// 新增报销主表
+  /// POST /oa/reimbursement
+  Future<ApiResponse<Object?>> createReimbursement(
+    ReimbursementSubmit data,
+  ) async {
+    final response = await _dio.post(
+      '/oa/reimbursement',
+      data: data.toJson(),
+    );
+    return ApiResponse.fromJson(
+      ensureJsonMap(response.data),
+      (json) => json,
+    );
+  }
+
+  /// 新增报销明细
+  /// POST /oa/reimbursementDetail
+  Future<ApiResponse<void>> createReimbursementDetail(
+    ReimbursementDetailSubmit data,
+  ) async {
+    final response = await _dio.post(
+      '/oa/reimbursementDetail',
+      data: data.toJson(),
+    );
+    return ApiResponse.fromJson(
+      ensureJsonMap(response.data),
+      (_) {},
+    );
+  }
+
   /// 获取报销详情
   /// GET /oa/reimbursement/{id}
   Future<ApiResponse<ReimbursementVo>> getReimbursement(int id) async {
@@ -262,6 +346,31 @@ class ApprovalApi {
     return PaginatedResponse.fromJson(
       ensureJsonMap(response.data),
       (json) => PersonnelBasicInfoVo.fromJson(json as Map<String, dynamic>),
+    );
+  }
+
+  // ========== 请假申请 ==========
+
+  /// 提交请假申请（当前登录用户即申请人）
+  /// POST /oa/leave
+  Future<ApiResponse<void>> submitLeave(LeaveApplicationSubmit data) async {
+    final response = await _dio.post(
+      '/oa/leave',
+      data: data.toJson(),
+    );
+    return ApiResponse.fromJson(
+      ensureJsonMap(response.data),
+      (_) {},
+    );
+  }
+
+  /// 查询请假申请详情
+  /// GET /oa/leave/{id}
+  Future<ApiResponse<LeaveApplicationVo>> getLeaveApplication(int id) async {
+    final response = await _dio.get('/oa/leave/$id');
+    return ApiResponse.fromJson(
+      ensureJsonMap(response.data),
+      (json) => LeaveApplicationVo.fromJson(json as Map<String, dynamic>),
     );
   }
 }

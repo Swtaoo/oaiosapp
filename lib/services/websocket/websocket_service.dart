@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/storage/secure_storage.dart';
 import '../notification/notification_service.dart';
+import '../notification/local_notification_service.dart';
 import 'websocket_client.dart';
 
 /// WebSocket 连接状态
@@ -95,7 +96,32 @@ class WebSocketNotifier extends StateNotifier<WebSocketState> {
   void _handleMessage(Map<String, dynamic> message) {
     // 处理聊天消息通知
     if (message['type'] == WsMessageType.chat) {
-      _ref.read(notificationServiceProvider.notifier).handleWebSocketMessage(message);
+      final notificationNotifier =
+          _ref.read(notificationServiceProvider.notifier);
+      final notificationState = _ref.read(notificationServiceProvider);
+      notificationNotifier.handleWebSocketMessage(message);
+
+      // 当用户不在该项目聊天页时，触发本地通知
+      final projectId = message['projectId'] as int?;
+      if (projectId != null &&
+          notificationState.currentViewingProjectId != projectId) {
+        final projectName =
+            message['projectName'] as String? ??
+            notificationState.getProjectName(projectId);
+        final senderName =
+            message['personnelName'] as String? ?? '未知用户';
+        final content =
+            message['content'] as String? ??
+            message['chatContent'] as String? ??
+            '[消息]';
+
+        _ref.read(localNotificationProvider.notifier).showChatNotification(
+              projectId: projectId,
+              projectName: projectName,
+              senderName: senderName,
+              content: content,
+            );
+      }
     }
 
     // 通知所有监听器

@@ -95,11 +95,27 @@ class _AddressPageState extends ConsumerState<AddressPage> {
     setState(() => _isSubmitting = true);
 
     try {
-      final api = ref.read(registerApiProvider);
       final regState = ref.read(registerProvider);
-      final basicInfo = regState.basicInfo;
+      final pid = regState.personnelId;
+      if (pid == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('未获取到人员信息，请返回重试')),
+        );
+        return;
+      }
+
+      // basicInfo 可能因 App 重启后未恢复而为 null，重新从 API 拉取
+      final api = ref.read(registerApiProvider);
+      PersonnelBasicInfoVo? basicInfo = regState.basicInfo;
+      if (basicInfo == null) {
+        final infoRes = await api.getPersonnelInfo(pid);
+        if (infoRes.isSuccess && infoRes.data != null) {
+          basicInfo = infoRes.data;
+        }
+      }
 
       final data = PersonnelBasicInfoSubmit(
+        id: pid,
         name: basicInfo?.name ?? '',
         phone: basicInfo?.phone ?? '',
         idCardNumber: _idCardCtl.text.trim(),
@@ -175,9 +191,7 @@ class _AddressPageState extends ConsumerState<AddressPage> {
                             required: true,
                             child: TextField(
                               controller: _idCardCtl,
-                              decoration: const InputDecoration.collapsed(
-                                hintText: '请输入身份证号',
-                              ),
+                              decoration: formInputDecoration(hint: '请输入身份证号'),
                               textAlign: TextAlign.end,
                               style: AppTypography.formField,
                             ),
@@ -187,58 +201,68 @@ class _AddressPageState extends ConsumerState<AddressPage> {
                             isLast: true,
                             child: TextField(
                               controller: _idCardAddressCtl,
-                              decoration: const InputDecoration.collapsed(
-                                hintText: '请输入身份证地址',
-                              ),
+                              decoration: formInputDecoration(hint: '请输入身份证地址'),
                               textAlign: TextAlign.end,
                               style: AppTypography.formField,
                             ),
                           ),
                           const SizedBox(height: 8),
-                          Text(
-                            '身份证正面照',
-                            style: AppTypography.footnote.copyWith(
-                              color: AppColors.textSecondary,
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Text(
+                              '身份证正面照',
+                              style: AppTypography.footnote.copyWith(
+                                color: AppColors.textSecondary,
+                              ),
                             ),
                           ),
                           const SizedBox(height: 8),
-                          OssUpload(
-                            maxCount: 1,
-                            initialFiles: _idCardFrontPhoto != null
-                                ? [
-                                    UploadFileItem(
-                                      uid: _idCardFrontPhoto!,
-                                      url: _idCardFrontPhoto!,
-                                    ),
-                                  ]
-                                : [],
-                            onSuccess: (data) =>
-                                setState(() => _idCardFrontPhoto = data.url),
-                            onRemove: (_) =>
-                                setState(() => _idCardFrontPhoto = null),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            '身份证反面照',
-                            style: AppTypography.footnote.copyWith(
-                              color: AppColors.textSecondary,
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: OssUpload(
+                              maxCount: 1,
+                              initialFiles: _idCardFrontPhoto != null
+                                  ? [
+                                      UploadFileItem(
+                                        uid: _idCardFrontPhoto!,
+                                        url: _idCardFrontPhoto!,
+                                      ),
+                                    ]
+                                  : [],
+                              onSuccess: (data) =>
+                                  setState(() => _idCardFrontPhoto = data.url),
+                              onRemove: (_) =>
+                                  setState(() => _idCardFrontPhoto = null),
                             ),
                           ),
                           const SizedBox(height: 8),
-                          OssUpload(
-                            maxCount: 1,
-                            initialFiles: _idCardBackPhoto != null
-                                ? [
-                                    UploadFileItem(
-                                      uid: _idCardBackPhoto!,
-                                      url: _idCardBackPhoto!,
-                                    ),
-                                  ]
-                                : [],
-                            onSuccess: (data) =>
-                                setState(() => _idCardBackPhoto = data.url),
-                            onRemove: (_) =>
-                                setState(() => _idCardBackPhoto = null),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Text(
+                              '身份证反面照',
+                              style: AppTypography.footnote.copyWith(
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: OssUpload(
+                              maxCount: 1,
+                              initialFiles: _idCardBackPhoto != null
+                                  ? [
+                                      UploadFileItem(
+                                        uid: _idCardBackPhoto!,
+                                        url: _idCardBackPhoto!,
+                                      ),
+                                    ]
+                                  : [],
+                              onSuccess: (data) =>
+                                  setState(() => _idCardBackPhoto = data.url),
+                              onRemove: (_) =>
+                                  setState(() => _idCardBackPhoto = null),
+                            ),
                           ),
                         ]),
                         FormSection(title: '地址信息', children: [
@@ -247,9 +271,7 @@ class _AddressPageState extends ConsumerState<AddressPage> {
                             isLast: true,
                             child: TextField(
                               controller: _residenceAddressCtl,
-                              decoration: const InputDecoration.collapsed(
-                                hintText: '请输入居住地址',
-                              ),
+                              decoration: formInputDecoration(hint: '请输入居住地址'),
                               textAlign: TextAlign.end,
                               style: AppTypography.formField,
                             ),
@@ -260,9 +282,7 @@ class _AddressPageState extends ConsumerState<AddressPage> {
                             label: '银行卡号',
                             child: TextField(
                               controller: _bankCardCtl,
-                              decoration: const InputDecoration.collapsed(
-                                hintText: '请输入银行卡号',
-                              ),
+                              decoration: formInputDecoration(hint: '请输入银行卡号'),
                               textAlign: TextAlign.end,
                               keyboardType: TextInputType.number,
                               style: AppTypography.formField,
@@ -273,58 +293,68 @@ class _AddressPageState extends ConsumerState<AddressPage> {
                             isLast: true,
                             child: TextField(
                               controller: _bankCardAddressCtl,
-                              decoration: const InputDecoration.collapsed(
-                                hintText: '请输入开户行地址',
-                              ),
+                              decoration: formInputDecoration(hint: '请输入开户行地址'),
                               textAlign: TextAlign.end,
                               style: AppTypography.formField,
                             ),
                           ),
                           const SizedBox(height: 8),
-                          Text(
-                            '银行卡正面照',
-                            style: AppTypography.footnote.copyWith(
-                              color: AppColors.textSecondary,
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Text(
+                              '银行卡正面照',
+                              style: AppTypography.footnote.copyWith(
+                                color: AppColors.textSecondary,
+                              ),
                             ),
                           ),
                           const SizedBox(height: 8),
-                          OssUpload(
-                            maxCount: 1,
-                            initialFiles: _bankCardFrontPhoto != null
-                                ? [
-                                    UploadFileItem(
-                                      uid: _bankCardFrontPhoto!,
-                                      url: _bankCardFrontPhoto!,
-                                    ),
-                                  ]
-                                : [],
-                            onSuccess: (data) =>
-                                setState(() => _bankCardFrontPhoto = data.url),
-                            onRemove: (_) =>
-                                setState(() => _bankCardFrontPhoto = null),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            '银行卡反面照',
-                            style: AppTypography.footnote.copyWith(
-                              color: AppColors.textSecondary,
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: OssUpload(
+                              maxCount: 1,
+                              initialFiles: _bankCardFrontPhoto != null
+                                  ? [
+                                      UploadFileItem(
+                                        uid: _bankCardFrontPhoto!,
+                                        url: _bankCardFrontPhoto!,
+                                      ),
+                                    ]
+                                  : [],
+                              onSuccess: (data) =>
+                                  setState(() => _bankCardFrontPhoto = data.url),
+                              onRemove: (_) =>
+                                  setState(() => _bankCardFrontPhoto = null),
                             ),
                           ),
                           const SizedBox(height: 8),
-                          OssUpload(
-                            maxCount: 1,
-                            initialFiles: _bankCardBackPhoto != null
-                                ? [
-                                    UploadFileItem(
-                                      uid: _bankCardBackPhoto!,
-                                      url: _bankCardBackPhoto!,
-                                    ),
-                                  ]
-                                : [],
-                            onSuccess: (data) =>
-                                setState(() => _bankCardBackPhoto = data.url),
-                            onRemove: (_) =>
-                                setState(() => _bankCardBackPhoto = null),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Text(
+                              '银行卡反面照',
+                              style: AppTypography.footnote.copyWith(
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: OssUpload(
+                              maxCount: 1,
+                              initialFiles: _bankCardBackPhoto != null
+                                  ? [
+                                      UploadFileItem(
+                                        uid: _bankCardBackPhoto!,
+                                        url: _bankCardBackPhoto!,
+                                      ),
+                                    ]
+                                  : [],
+                              onSuccess: (data) =>
+                                  setState(() => _bankCardBackPhoto = data.url),
+                              onRemove: (_) =>
+                                  setState(() => _bankCardBackPhoto = null),
+                            ),
                           ),
                         ]),
                       ],

@@ -95,14 +95,15 @@ class _PunchButtonState extends State<PunchButton>
     if (!widget.isWithinRange) {
       return [AppColors.warning, const Color(0xFFFFCB7C)];
     }
-    return [AppColors.primary, const Color(0xFF66B2FF)];
+    // 正常打卡按钮：改为绿色（与统计页“正常”一致）
+    return [AppColors.success, const Color(0xFF6EEB83)];
   }
 
   Color get _shadowColor {
     if (!widget.isWithinRange) {
       return AppColors.warning.withValues(alpha: 0.3);
     }
-    return AppColors.primary.withValues(alpha: 0.3);
+    return AppColors.success.withValues(alpha: 0.3);
   }
 
   @override

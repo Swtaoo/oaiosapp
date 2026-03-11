@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 
+import '../../../common/presentation/pages/pdf_viewer_page.dart';
 import '../../data/models/project_models.dart';
 import '../theme/chat_colors.dart';
 import 'chat_file_bubble.dart';
 import 'chat_reply_preview.dart';
 import 'chat_revoked_message.dart';
+import 'mention_text.dart';
 
 /// 企微风格聊天气泡
-/// 支持: 文本、图片、文件、回复引用、撤回消息
+/// 支持: 文本、图片、文件、回复引用、撤回消息、@提及高亮
 class ChatMessageBubble extends StatelessWidget {
   final String senderName;
   final String content;
@@ -15,12 +17,13 @@ class ChatMessageBubble extends StatelessWidget {
   final bool isOwn;
   final String? imageUrl;
   final ChatRecordVo? message;
-
-  /// 消息状态: null=正常, sending=发送中, failed=失败
-  final String? sendStatus;
+  final Set<String> memberNames;
 
   /// 长按回调
   final VoidCallback? onLongPress;
+
+  /// 点击回复引用区域的回调
+  final VoidCallback? onReplyTap;
 
   const ChatMessageBubble({
     super.key,
@@ -30,8 +33,9 @@ class ChatMessageBubble extends StatelessWidget {
     required this.isOwn,
     this.imageUrl,
     this.message,
-    this.sendStatus,
     this.onLongPress,
+    this.onReplyTap,
+    this.memberNames = const {},
   });
 
   bool get _isImageMessage => imageUrl != null && imageUrl!.isNotEmpty;
@@ -104,10 +108,6 @@ class ChatMessageBubble extends StatelessWidget {
                     textDirection: isOwn ? TextDirection.rtl : TextDirection.ltr,
                     children: [
                       Flexible(child: _buildContent(context)),
-                      if (sendStatus != null) ...[
-                        const SizedBox(width: 4),
-                        _buildStatusIndicator(),
-                      ],
                     ],
                   ),
                 ],
@@ -129,6 +129,7 @@ class ChatMessageBubble extends StatelessWidget {
         fileSize: message!.fileSize,
         fileUrl: message!.fileUrl,
         isOwn: isOwn,
+        onTap: () => _openFile(context),
       );
     }
 
@@ -170,14 +171,16 @@ class ChatMessageBubble extends StatelessWidget {
                 replyUserName: message?.replyUserName,
                 replyContent: message?.replyContent,
                 isOwn: isOwn,
+                onTap: onReplyTap,
               ),
-            Text(
-              content,
-              style: TextStyle(
+            MentionText(
+              text: content,
+              baseStyle: TextStyle(
                 fontSize: 15,
                 color: textColor,
                 height: 1.4,
               ),
+              memberNames: memberNames,
             ),
           ],
         ),
@@ -210,7 +213,7 @@ class ChatMessageBubble extends StatelessWidget {
                 ),
               );
             },
-            errorBuilder: (_, __, ___) => Container(
+            errorBuilder: (_, _, _) => Container(
               width: 200,
               height: 80,
               color: const Color(0xFFF0F0F0),
@@ -232,27 +235,6 @@ class ChatMessageBubble extends StatelessWidget {
     );
   }
 
-  Widget _buildStatusIndicator() {
-    if (sendStatus == 'sending') {
-      return const SizedBox(
-        width: 14,
-        height: 14,
-        child: CircularProgressIndicator(
-          strokeWidth: 1.5,
-          color: Color(0xFF999999),
-        ),
-      );
-    }
-    if (sendStatus == 'failed') {
-      return const Icon(
-        Icons.error,
-        size: 18,
-        color: Color(0xFFFF3B30),
-      );
-    }
-    return const SizedBox.shrink();
-  }
-
   void _showFullImage(BuildContext context) {
     showDialog(
       context: context,
@@ -265,11 +247,25 @@ class ChatMessageBubble extends StatelessWidget {
             child: Image.network(
               imageUrl!,
               fit: BoxFit.contain,
-              errorBuilder: (_, __, ___) => const Center(
+              errorBuilder: (_, _, _) => const Center(
                 child: Icon(Icons.broken_image, color: Colors.white, size: 48),
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  void _openFile(BuildContext context) {
+    final url = message?.fileUrl;
+    if (url == null || url.isEmpty) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PdfViewerPage(
+          url: url,
+          title: message?.fileName ?? '文件预览',
         ),
       ),
     );

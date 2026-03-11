@@ -36,11 +36,19 @@ class _TrainingAddPageState extends ConsumerState<TrainingAddPage> {
   }
 
   Future<void> _loadData() async {
-    final list = ref
+    var list = ref
         .read(registerProvider)
         .resumeList
         .where((e) => e.experienceType == 2)
         .toList();
+    if (list.isEmpty) {
+      await ref.read(registerProvider.notifier).loadResumeList();
+      list = ref
+          .read(registerProvider)
+          .resumeList
+          .where((e) => e.experienceType == 2)
+          .toList();
+    }
     if (widget.index! < list.length) {
       final item = list[widget.index!];
       setState(() {
@@ -74,7 +82,14 @@ class _TrainingAddPageState extends ConsumerState<TrainingAddPage> {
     try {
       final api = ref.read(registerApiProvider);
       final pid = ref.read(registerProvider).personnelId;
-      if (pid == null) return;
+      if (pid == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('未获取到人员信息，请返回重试')),
+          );
+        }
+        return;
+      }
       final data = PersonnelResumeSubmit(
         id: _existingId,
         personnelId: pid,
@@ -138,9 +153,7 @@ class _TrainingAddPageState extends ConsumerState<TrainingAddPage> {
             required: true,
             child: TextField(
               controller: _unitNameCtl,
-              decoration: const InputDecoration.collapsed(
-                hintText: '请输入培训机构',
-              ),
+              decoration: formInputDecoration(hint: '请输入培训机构'),
               textAlign: TextAlign.end,
               style: AppTypography.formField,
             ),
@@ -150,9 +163,7 @@ class _TrainingAddPageState extends ConsumerState<TrainingAddPage> {
             required: true,
             child: TextField(
               controller: _courseCtl,
-              decoration: const InputDecoration.collapsed(
-                hintText: '请输入培训课程',
-              ),
+              decoration: formInputDecoration(hint: '请输入培训课程'),
               textAlign: TextAlign.end,
               style: AppTypography.formField,
             ),

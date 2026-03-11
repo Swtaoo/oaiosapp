@@ -142,6 +142,11 @@ class AuthStateNotifier extends StateNotifier<AsyncValue<AuthState>> {
     await storage.clearAll();
     state = const AsyncData(AuthState());
   }
+
+  /// 强制登出 (token 失效/冻结时由拦截器调用，不请求后端)
+  void forceLogout() {
+    state = const AsyncData(AuthState());
+  }
 }
 
 /// 认证状态 Notifier Provider

@@ -2,7 +2,7 @@
 class RegisterConstants {
   RegisterConstants._();
 
-  static const stepLabels = ['基本信息', '证件信息', '入职规划', '履历家庭'];
+  static const stepLabels = ['基本信息', '基本信息附件', '入职规划', '人员履历'];
 
   static const genderOptions = ['男', '女'];
 
@@ -22,6 +22,17 @@ class RegisterConstants {
   static const maritalOptions = ['未婚', '已婚', '离异', '丧偶'];
 
   static const specialtyOptions = ['编程', '设计', '写作', '演讲', '管理', '销售', '其他'];
+
+  static const specialtyCheckboxOptions = [
+    '善于沟通',
+    '工作负责',
+    '团队协作',
+    '学习能力强',
+    '执行力强',
+    '创新能力',
+    '抗压能力强',
+    '其他',
+  ];
 
   static const ethnicityOptions = [
     '汉族', '蒙古族', '回族', '藏族', '维吾尔族', '苗族', '彝族', '壮族',

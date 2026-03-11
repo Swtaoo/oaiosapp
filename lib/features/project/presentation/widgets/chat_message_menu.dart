@@ -13,7 +13,7 @@ enum ChatMessageAction {
 }
 
 /// 企微风格消息长按菜单
-/// 黑色浮窗: 复制 / 回复 / 转发 / 删除 / 撤回(自己消息且2分钟内)
+/// 黑色浮窗: 复制 / 回复 / 转发 / 删除 / 撤回(自己消息)
 class ChatMessageMenu extends StatelessWidget {
   final bool isOwn;
   final bool canRevoke;

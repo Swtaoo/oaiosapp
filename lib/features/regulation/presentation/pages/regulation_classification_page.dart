@@ -1,16 +1,22 @@
-﻿// 规章制度分类详情页 - 对应 src/pages/rules/classification_detail.vue
+// 规章制度分类详情页 - 对应 src/pages/rules/classification_detail.vue
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/network/dio_client.dart';
+import '../../../../core/storage/secure_storage.dart';
 import '../../../../core/constants/api_constants.dart';
+import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_typography.dart';
 import '../../data/api/regulation_api.dart';
 import '../../data/models/regulation_models.dart';
 
 final _regulationApiProvider = Provider<RegulationApi>((ref) {
-  return RegulationApi(ref.watch(dioProvider));
+  return RegulationApi(
+    ref.watch(dioProvider),
+    ref.watch(secureStorageProvider),
+  );
 });
 
 class RegulationClassificationPage extends ConsumerStatefulWidget {
@@ -50,7 +56,8 @@ class _RegulationClassificationPageState
       if (res.isSuccess) {
         setState(() => _list = res.rows ?? []);
       }
-    } catch (e) { debugPrint('[regulation_classification_page] Error: $e');
+    } catch (e) {
+      debugPrint('[regulation_classification_page] Error: $e');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -90,22 +97,41 @@ class _RegulationClassificationPageState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF2F2F7),
-      appBar: AppBar(title: Text(widget.title)),
+      backgroundColor: AppColors.backgroundGroupedPrimary,
+      appBar: AppBar(
+        title: Text(widget.title),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: TextButton.icon(
+              onPressed: () => context.push(
+                '/regulation/ai?title=${Uri.encodeComponent('AI问${widget.title}')}&regulationType=${widget.regulationType}',
+              ),
+              icon: const Icon(Icons.auto_awesome_outlined, size: 18),
+              label: const Text('AI问制度'),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                textStyle: AppTypography.caption1.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _list.isEmpty
-              ? _buildEmpty()
-              : RefreshIndicator(
-                  onRefresh: _loadData,
-                  child: ListView.separated(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _list.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 10),
-                    itemBuilder: (context, index) =>
-                        _buildFileCard(_list[index]),
-                  ),
-                ),
+          ? _buildEmpty()
+          : RefreshIndicator(
+              onRefresh: _loadData,
+              child: ListView.separated(
+                padding: const EdgeInsets.all(16),
+                itemCount: _list.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 10),
+                itemBuilder: (context, index) => _buildFileCard(_list[index]),
+              ),
+            ),
     );
   }
 
@@ -116,11 +142,15 @@ class _RegulationClassificationPageState
         children: [
           Icon(Icons.folder_open, size: 60, color: Color(0xFFC7C7CC)),
           SizedBox(height: 12),
-          Text('暂无文件',
-              style: TextStyle(fontSize: 14, color: Color(0xFF9CA3AF))),
+          Text(
+            '暂无文件',
+            style: TextStyle(fontSize: 14, color: Color(0xFF9CA3AF)),
+          ),
           SizedBox(height: 4),
-          Text('该分类下暂无文件',
-              style: TextStyle(fontSize: 12, color: Color(0xFFC7C7CC))),
+          Text(
+            '该分类下暂无文件',
+            style: TextStyle(fontSize: 12, color: Color(0xFFC7C7CC)),
+          ),
         ],
       ),
     );
@@ -158,31 +188,46 @@ class _RegulationClassificationPageState
                 ),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(Icons.picture_as_pdf,
-                  size: 20, color: Colors.white),
+              child: const Icon(
+                Icons.picture_as_pdf,
+                size: 20,
+                color: Colors.white,
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(_displayFileName(reg),
-                      style: const TextStyle(
-                          fontSize: 14, fontWeight: FontWeight.w600),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis),
+                  Text(
+                    _displayFileName(reg),
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                   const SizedBox(height: 4),
                   Row(
                     children: [
                       if (reg.regulationTypeName != null)
-                        Text(reg.regulationTypeName!,
-                            style: const TextStyle(
-                                fontSize: 11, color: Color(0xFF6B7280))),
+                        Text(
+                          reg.regulationTypeName!,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF6B7280),
+                          ),
+                        ),
                       if (reg.updateTime != null) ...[
                         const SizedBox(width: 8),
-                        Text(_formatDate(reg.updateTime),
-                            style: const TextStyle(
-                                fontSize: 11, color: Color(0xFF9CA3AF))),
+                        Text(
+                          _formatDate(reg.updateTime),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF9CA3AF),
+                          ),
+                        ),
                       ],
                     ],
                   ),
@@ -190,21 +235,22 @@ class _RegulationClassificationPageState
               ),
             ),
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
                 color: const Color(0xFFFF4757).withValues(alpha: 0.7),
                 borderRadius: BorderRadius.circular(6),
               ),
-              child: const Text('PDF',
-                  style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white)),
+              child: const Text(
+                'PDF',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
             ),
             const SizedBox(width: 8),
-            const Icon(Icons.chevron_right,
-                color: Color(0xFFC7C7CC), size: 20),
+            const Icon(Icons.chevron_right, color: Color(0xFFC7C7CC), size: 20),
           ],
         ),
       ),

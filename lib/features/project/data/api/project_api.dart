@@ -1,6 +1,7 @@
 ﻿// 项目 API - 对应 service/projectInfo.ts, projectStaff.ts, chatRecord.ts
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../../../core/network/api_response.dart';
 import '../models/project_models.dart';
@@ -107,14 +108,23 @@ class ProjectApi {
     required int projectId,
     required int personnelId,
     required String chatContent,
+    String? atPersonnelIds,
+    int? replyId,
+    String? replyContent,
+    String? replyUserName,
   }) async {
+    final data = <String, dynamic>{
+      'projectId': projectId,
+      'personnelId': personnelId,
+      'chatContent': chatContent,
+    };
+    if (atPersonnelIds != null) data['atPersonnelIds'] = atPersonnelIds;
+    if (replyId != null) data['replyId'] = replyId;
+    if (replyContent != null) data['replyContent'] = replyContent;
+    if (replyUserName != null) data['replyUserName'] = replyUserName;
     final response = await _dio.post(
       '/oa/chatRecord',
-      data: {
-        'projectId': projectId,
-        'personnelId': personnelId,
-        'chatContent': chatContent,
-      },
+      data: data,
     );
     return ApiResponse.fromJson(
       ensureJsonMap(response.data),
@@ -136,6 +146,7 @@ class ProjectApi {
     int? replyId,
     String? replyContent,
     String? replyUserName,
+    String? atPersonnelIds,
   }) async {
     final data = <String, dynamic>{
       'projectId': projectId,
@@ -150,6 +161,7 @@ class ProjectApi {
     if (replyId != null) data['replyId'] = replyId;
     if (replyContent != null) data['replyContent'] = replyContent;
     if (replyUserName != null) data['replyUserName'] = replyUserName;
+    if (atPersonnelIds != null) data['atPersonnelIds'] = atPersonnelIds;
 
     final response = await _dio.post('/oa/chatRecord', data: data);
     return ApiResponse.fromJson(
@@ -158,23 +170,21 @@ class ProjectApi {
     );
   }
 
-  /// 撤回聊天消息（软删除: delFlag=2）
-  /// PUT /oa/chatRecord
-  Future<ApiResponse<void>> revokeChatMessage(int messageId) async {
+  /// 撤回聊天消息
+  /// POST /oa/chatRecord/revoke/{id}?personnelId=xxx
+  Future<ApiResponse<void>> revokeChatMessage(int messageId, int personnelId) async {
     try {
-      final response = await _dio.put(
-        '/oa/chatRecord',
-        data: {
-          'id': messageId,
-          'delFlag': 2,
-        },
+      final response = await _dio.post(
+        '/oa/chatRecord/revoke/$messageId',
+        queryParameters: {'personnelId': personnelId},
       );
+      debugPrint('[project_api] revokeChatMessage response: ${response.data}');
       return ApiResponse.fromJson(
         ensureJsonMap(response.data),
         (_) {},
       );
     } catch (e) {
-      // 优雅降级: 接口不存在时返回失败
+      debugPrint('[project_api] revokeChatMessage error: $e');
       return const ApiResponse(code: -1, msg: '撤回功能暂不可用');
     }
   }

@@ -8,11 +8,13 @@ import '../../data/models/attendance_models.dart';
 class PunchRecordCard extends StatelessWidget {
   final DailyAttendance? record;
   final String selectedDate;
+  final EdgeInsetsGeometry margin;
 
   const PunchRecordCard({
     super.key,
     this.record,
     required this.selectedDate,
+    this.margin = const EdgeInsets.all(12),
   });
 
   static const _statusLabels = {
@@ -20,6 +22,13 @@ class PunchRecordCard extends StatelessWidget {
     'late': '迟到',
     'early': '早退',
     'absent': '缺卡',
+  };
+
+  static const _anomalyLabels = {
+    'late': '迟到',
+    'early': '早退',
+    'missing_clock_in': '上班缺卡',
+    'missing_clock_out': '下班缺卡',
   };
 
   Color _statusColor(String? status) {
@@ -53,7 +62,7 @@ class PunchRecordCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.all(12),
+      margin: margin,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -76,34 +85,42 @@ class PunchRecordCard extends StatelessWidget {
               Text(
                 selectedDate,
                 style: const TextStyle(
-                    fontSize: 15, fontWeight: FontWeight.w600),
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               const Spacer(),
               if (record?.anomalies.isNotEmpty == true)
-                ...record!.anomalies.map((a) => Container(
-                      margin: const EdgeInsets.only(left: 4),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFF5EB),
-                        borderRadius: BorderRadius.circular(2),
+                ...record!.anomalies.map((a) {
+                  final isMissing = a.startsWith('missing_');
+                  return Container(
+                    margin: const EdgeInsets.only(left: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isMissing
+                          ? const Color(0xFFFFF0F0)
+                          : const Color(0xFFFFF5EB),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                    child: Text(
+                      _anomalyLabels[a] ?? a,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: isMissing ? AppColors.error : AppColors.warning,
                       ),
-                      child: Text(
-                        a,
-                        style: TextStyle(
-                            fontSize: 11, color: AppColors.warning),
-                      ),
-                    )),
+                    ),
+                  );
+                }),
             ],
           ),
           Divider(height: 20, color: AppColors.separatorNonOpaque),
 
           if (record != null) ...[
             // 上班记录
-            _buildRecordItem(
-              label: '上班打卡',
-              punchRecord: record!.clockInRecord,
-            ),
+            _buildRecordItem(label: '上班打卡', punchRecord: record!.clockInRecord),
             const SizedBox(height: 10),
             // 下班记录
             _buildRecordItem(
@@ -119,13 +136,17 @@ class PunchRecordCard extends StatelessWidget {
                   decoration: BoxDecoration(
                     border: Border(
                       top: BorderSide(
-                          color: AppColors.separatorNonOpaque, width: 0.5),
+                        color: AppColors.separatorNonOpaque,
+                        width: 0.5,
+                      ),
                     ),
                   ),
                   child: Text(
                     '工作时长: ${record!.workHours.toStringAsFixed(1)}小时',
                     style: TextStyle(
-                        fontSize: 13, color: AppColors.textSecondary),
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                 ),
               ),
@@ -136,7 +157,9 @@ class PunchRecordCard extends StatelessWidget {
                 child: Text(
                   '暂无打卡记录',
                   style: TextStyle(
-                      fontSize: 14, color: AppColors.textQuaternary),
+                    fontSize: 14,
+                    color: AppColors.textQuaternary,
+                  ),
                 ),
               ),
             ),
@@ -174,8 +197,10 @@ class PunchRecordCard extends StatelessWidget {
               ),
               if (punchRecord.status != null)
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 5,
+                    vertical: 1,
+                  ),
                   decoration: BoxDecoration(
                     color: _statusBgColor(punchRecord.status),
                     borderRadius: BorderRadius.circular(2),
@@ -190,21 +215,21 @@ class PunchRecordCard extends StatelessWidget {
                 ),
               Text(
                 punchRecord.punchLocation,
-                style: TextStyle(
-                    fontSize: 11, color: AppColors.textTertiary),
+                style: TextStyle(fontSize: 11, color: AppColors.textTertiary),
               ),
               if (punchRecord.punchType == 1)
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 1,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFFFF5EB),
                     borderRadius: BorderRadius.circular(2),
                   ),
                   child: Text(
                     '外勤',
-                    style: TextStyle(
-                        fontSize: 10, color: AppColors.warning),
+                    style: TextStyle(fontSize: 10, color: AppColors.warning),
                   ),
                 ),
             ],
@@ -212,8 +237,7 @@ class PunchRecordCard extends StatelessWidget {
         else
           Text(
             '未打卡',
-            style: TextStyle(
-                fontSize: 14, color: AppColors.textQuaternary),
+            style: TextStyle(fontSize: 14, color: AppColors.textQuaternary),
           ),
       ],
     );

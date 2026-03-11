@@ -29,7 +29,7 @@ class PendingSummary extends StatelessWidget {
               icon: Icons.task_outlined,
               iconBgColor: AppColors.primary.withValues(alpha: 0.1),
               iconColor: AppColors.primary,
-              label: '待审批',
+              label: '待我审批',
               count: '$pendingCount项',
               onTap: onApprovalTap,
             ),

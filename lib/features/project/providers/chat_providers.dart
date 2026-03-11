@@ -3,6 +3,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../services/notification/notification_service.dart';
+import '../../../services/notification/local_notification_service.dart';
 import '../../../services/websocket/websocket_service.dart';
 import 'chat_notifier.dart';
 import 'project_providers.dart';
@@ -19,10 +20,13 @@ final chatNotifierProvider = StateNotifierProvider.autoDispose
   final api = ref.watch(projectApiProvider);
   final wsNotifier = ref.read(webSocketProvider.notifier);
   final notificationNotifier = ref.read(notificationServiceProvider.notifier);
+  final localNotificationNotifier =
+      ref.read(localNotificationProvider.notifier);
   return ChatNotifier(
     projectId: projectId,
     api: api,
     wsNotifier: wsNotifier,
     notificationNotifier: notificationNotifier,
+    localNotificationNotifier: localNotificationNotifier,
   );
 });

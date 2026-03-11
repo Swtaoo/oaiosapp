@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../../core/theme/app_colors.dart';
-import '../../../../../core/theme/app_spacing.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../../../data/models/register_models.dart';
 import '../../../providers/register_provider.dart';
@@ -41,7 +40,11 @@ class _FamilyAddPageState extends ConsumerState<FamilyAddPage> {
   }
 
   Future<void> _loadData() async {
-    final list = ref.read(registerProvider).familyList;
+    var list = ref.read(registerProvider).familyList;
+    if (list.isEmpty) {
+      await ref.read(registerProvider.notifier).loadFamilyList();
+      list = ref.read(registerProvider).familyList;
+    }
     if (widget.index! < list.length) {
       final item = list[widget.index!];
       setState(() {
@@ -77,7 +80,14 @@ class _FamilyAddPageState extends ConsumerState<FamilyAddPage> {
     try {
       final api = ref.read(registerApiProvider);
       final pid = ref.read(registerProvider).personnelId;
-      if (pid == null) return;
+      if (pid == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('未获取到人员信息，请返回重试')),
+          );
+        }
+        return;
+      }
       final data = PersonnelFamilyRelationSubmit(
         id: _existingId,
         personnelId: pid,
@@ -159,9 +169,7 @@ class _FamilyAddPageState extends ConsumerState<FamilyAddPage> {
             required: true,
             child: TextField(
               controller: _nameCtl,
-              decoration: const InputDecoration.collapsed(
-                hintText: '请输入姓名',
-              ),
+              decoration: formInputDecoration(hint: '请输入姓名'),
               textAlign: TextAlign.end,
               style: AppTypography.formField,
             ),
@@ -170,9 +178,7 @@ class _FamilyAddPageState extends ConsumerState<FamilyAddPage> {
             label: '联系方式',
             child: TextField(
               controller: _phoneCtl,
-              decoration: const InputDecoration.collapsed(
-                hintText: '请输入联系方式',
-              ),
+              decoration: formInputDecoration(hint: '请输入联系方式'),
               textAlign: TextAlign.end,
               keyboardType: TextInputType.phone,
               style: AppTypography.formField,
@@ -183,9 +189,7 @@ class _FamilyAddPageState extends ConsumerState<FamilyAddPage> {
             required: true,
             child: TextField(
               controller: _relationCtl,
-              decoration: const InputDecoration.collapsed(
-                hintText: '请输入关系',
-              ),
+              decoration: formInputDecoration(hint: '请输入关系'),
               textAlign: TextAlign.end,
               style: AppTypography.formField,
             ),
@@ -194,9 +198,7 @@ class _FamilyAddPageState extends ConsumerState<FamilyAddPage> {
             label: '年龄',
             child: TextField(
               controller: _ageCtl,
-              decoration: const InputDecoration.collapsed(
-                hintText: '请输入年龄',
-              ),
+              decoration: formInputDecoration(hint: '请输入年龄'),
               textAlign: TextAlign.end,
               keyboardType: TextInputType.number,
               style: AppTypography.formField,
@@ -206,9 +208,7 @@ class _FamilyAddPageState extends ConsumerState<FamilyAddPage> {
             label: '职业',
             child: TextField(
               controller: _occupationCtl,
-              decoration: const InputDecoration.collapsed(
-                hintText: '请输入职业',
-              ),
+              decoration: formInputDecoration(hint: '请输入职业'),
               textAlign: TextAlign.end,
               style: AppTypography.formField,
             ),
@@ -217,9 +217,7 @@ class _FamilyAddPageState extends ConsumerState<FamilyAddPage> {
             label: '政治面貌',
             child: TextField(
               controller: _politicalCtl,
-              decoration: const InputDecoration.collapsed(
-                hintText: '请输入政治面貌',
-              ),
+              decoration: formInputDecoration(hint: '请输入政治面貌'),
               textAlign: TextAlign.end,
               style: AppTypography.formField,
             ),
@@ -235,15 +233,13 @@ class _FamilyAddPageState extends ConsumerState<FamilyAddPage> {
               ),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: AppSpacing.s8),
+          FormRow(
+            label: '备注',
+            isLast: true,
             child: TextField(
               controller: _remarkCtl,
-              decoration: InputDecoration(
-                hintText: '请输入备注',
-                border: const OutlineInputBorder(),
-                contentPadding: const EdgeInsets.all(AppSpacing.s12),
-              ),
+              decoration: formInputDecoration(hint: '请输入备注'),
+              textAlign: TextAlign.end,
               maxLines: 3,
               style: AppTypography.formField,
             ),

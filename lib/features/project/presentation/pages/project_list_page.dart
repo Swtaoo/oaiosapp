@@ -20,6 +20,8 @@ class ProjectListPage extends ConsumerStatefulWidget {
 class _ProjectListPageState extends ConsumerState<ProjectListPage> {
   List<ProjectInfoVo> _projects = [];
   bool _isLoading = true;
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
 
   /// 项目 id -> 项目经理姓名
   final Map<int, String> _managerNames = {};
@@ -28,6 +30,12 @@ class _ProjectListPageState extends ConsumerState<ProjectListPage> {
   void initState() {
     super.initState();
     _loadData();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadData() async {
@@ -77,10 +85,18 @@ class _ProjectListPageState extends ConsumerState<ProjectListPage> {
     }
   }
 
-  /// 按最后消息时间降序排列项目
+  /// 按最后消息时间降序排列项目，并应用搜索过滤
   List<ProjectInfoVo> get _sortedProjects {
     final notificationState = ref.watch(notificationServiceProvider);
-    final sorted = List<ProjectInfoVo>.from(_projects);
+    var filtered = _projects;
+    if (_searchQuery.isNotEmpty) {
+      filtered = _projects
+          .where((p) =>
+              (p.projectName ?? '').contains(_searchQuery) ||
+              (p.projectDescription ?? '').contains(_searchQuery))
+          .toList();
+    }
+    final sorted = List<ProjectInfoVo>.from(filtered);
     sorted.sort((a, b) {
       final aTime = notificationState.unreadMap[a.id]?.lastTimestamp ?? 0;
       final bTime = notificationState.unreadMap[b.id]?.lastTimestamp ?? 0;
@@ -103,15 +119,19 @@ class _ProjectListPageState extends ConsumerState<ProjectListPage> {
       appBar: AppBar(title: const Text('项目消息')),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : sorted.isEmpty
-              ? _buildEmpty()
-              : RefreshIndicator(
-                  onRefresh: _loadData,
-                  child: ListView.separated(
-                    itemCount: sorted.length,
-                    separatorBuilder: (_, __) => const Divider(
+          : Column(
+              children: [
+                _buildSearchBar(),
+                Expanded(
+                  child: sorted.isEmpty
+                      ? _buildEmpty()
+                      : RefreshIndicator(
+                          onRefresh: _loadData,
+                          child: ListView.separated(
+                            itemCount: sorted.length,
+                            separatorBuilder: (_, _) => const Divider(
                       height: 0.5,
-                      indent: 76, // 头像(48) + 间距(16+12)
+                      indent: 80, // 头像(52) + 间距(16+12)
                       color: Color(0xFFEEEEEE),
                     ),
                     itemBuilder: (context, index) {
@@ -121,6 +141,9 @@ class _ProjectListPageState extends ConsumerState<ProjectListPage> {
 
                       return ConversationListItem(
                         projectName: project.projectName ?? '未命名项目',
+                        projectDescription: project.projectDescription,
+                        managerName: _managerNames[projectId],
+                        expectedDeliveryTime: project.expectedDeliveryTime,
                         lastContent: unreadInfo?.lastContent,
                         lastSenderName: unreadInfo?.lastSenderName,
                         lastTimestamp: unreadInfo?.lastTimestamp,
@@ -130,8 +153,54 @@ class _ProjectListPageState extends ConsumerState<ProjectListPage> {
                         ),
                       );
                     },
-                  ),
+                          ),
+                        ),
                 ),
+              ],
+            ),
+    );
+  }
+
+  Widget _buildSearchBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      child: TextField(
+        controller: _searchController,
+        onChanged: (value) => setState(() => _searchQuery = value.trim()),
+        decoration: InputDecoration(
+          hintText: '搜索项目',
+          hintStyle: const TextStyle(fontSize: 14, color: Color(0xFF9CA3AF)),
+          prefixIcon: const Icon(Icons.search, size: 20, color: Color(0xFF9CA3AF)),
+          suffixIcon: ValueListenableBuilder<TextEditingValue>(
+            valueListenable: _searchController,
+            builder: (_, value, _) {
+              if (value.text.isEmpty) return const SizedBox.shrink();
+              return GestureDetector(
+                onTap: () {
+                  _searchController.clear();
+                  setState(() => _searchQuery = '');
+                },
+                child: const Icon(Icons.close, size: 18, color: Color(0xFF9CA3AF)),
+              );
+            },
+          ),
+          filled: true,
+          fillColor: const Color(0xFFF2F2F7),
+          contentPadding: const EdgeInsets.symmetric(vertical: 0),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide.none,
+          ),
+        ),
+      ),
     );
   }
 

@@ -102,29 +102,23 @@ class DailyAttendance {
 
 /// 月度统计 - 对应 AttendanceMonthlyStatsVo
 class MonthlyStats {
-  final int year;
-  final int month;
+  final int totalWorkDays;
   final int actualWorkDays;
-  final int requiredWorkDays;
   final int lateCount;
   final int earlyLeaveCount;
   final int absentCount;
-  final int absenteeismCount;
-  final int fieldWorkCount;
+  final int leaveCount;
   final double totalWorkHours;
   final double averageWorkHours;
   final double overtimeHours;
 
   const MonthlyStats({
-    required this.year,
-    required this.month,
+    required this.totalWorkDays,
     required this.actualWorkDays,
-    required this.requiredWorkDays,
     required this.lateCount,
     required this.earlyLeaveCount,
     required this.absentCount,
-    required this.absenteeismCount,
-    required this.fieldWorkCount,
+    required this.leaveCount,
     required this.totalWorkHours,
     required this.averageWorkHours,
     required this.overtimeHours,
@@ -132,15 +126,12 @@ class MonthlyStats {
 
   factory MonthlyStats.fromJson(Map<String, dynamic> json) {
     return MonthlyStats(
-      year: json['year'] as int? ?? 0,
-      month: json['month'] as int? ?? 0,
+      totalWorkDays: json['totalWorkDays'] as int? ?? 0,
       actualWorkDays: json['actualWorkDays'] as int? ?? 0,
-      requiredWorkDays: json['requiredWorkDays'] as int? ?? 0,
       lateCount: json['lateCount'] as int? ?? 0,
       earlyLeaveCount: json['earlyLeaveCount'] as int? ?? 0,
       absentCount: json['absentCount'] as int? ?? 0,
-      absenteeismCount: json['absenteeismCount'] as int? ?? 0,
-      fieldWorkCount: json['fieldWorkCount'] as int? ?? 0,
+      leaveCount: json['leaveCount'] as int? ?? 0,
       totalWorkHours: (json['totalWorkHours'] as num?)?.toDouble() ?? 0.0,
       averageWorkHours: (json['averageWorkHours'] as num?)?.toDouble() ?? 0.0,
       overtimeHours: (json['overtimeHours'] as num?)?.toDouble() ?? 0.0,
@@ -150,45 +141,48 @@ class MonthlyStats {
 
 /// 周期详细统计 - 对应 AttendancePeriodStatsVo
 class PeriodStats {
-  final String startDate;
-  final String endDate;
+  final double averageWorkHours;
   final int actualWorkDays;
-  final int requiredWorkDays;
+  final int workShiftCount;
+  final int restDays;
   final int lateCount;
   final int earlyLeaveCount;
   final int absentCount;
   final int absenteeismCount;
   final int fieldWorkCount;
-  final double totalWorkHours;
-  final double averageWorkHours;
+  final double overtimeHours;
+  final int makeupPunchCount;
+  final String statisticsTime;
 
   const PeriodStats({
-    required this.startDate,
-    required this.endDate,
+    required this.averageWorkHours,
     required this.actualWorkDays,
-    required this.requiredWorkDays,
+    required this.workShiftCount,
+    required this.restDays,
     required this.lateCount,
     required this.earlyLeaveCount,
     required this.absentCount,
     required this.absenteeismCount,
     required this.fieldWorkCount,
-    required this.totalWorkHours,
-    required this.averageWorkHours,
+    required this.overtimeHours,
+    required this.makeupPunchCount,
+    required this.statisticsTime,
   });
 
   factory PeriodStats.fromJson(Map<String, dynamic> json) {
     return PeriodStats(
-      startDate: json['startDate'] as String? ?? '',
-      endDate: json['endDate'] as String? ?? '',
+      averageWorkHours: (json['averageWorkHours'] as num?)?.toDouble() ?? 0.0,
       actualWorkDays: json['actualWorkDays'] as int? ?? 0,
-      requiredWorkDays: json['requiredWorkDays'] as int? ?? 0,
+      workShiftCount: json['workShiftCount'] as int? ?? 0,
+      restDays: json['restDays'] as int? ?? 0,
       lateCount: json['lateCount'] as int? ?? 0,
       earlyLeaveCount: json['earlyLeaveCount'] as int? ?? 0,
       absentCount: json['absentCount'] as int? ?? 0,
       absenteeismCount: json['absenteeismCount'] as int? ?? 0,
       fieldWorkCount: json['fieldWorkCount'] as int? ?? 0,
-      totalWorkHours: (json['totalWorkHours'] as num?)?.toDouble() ?? 0.0,
-      averageWorkHours: (json['averageWorkHours'] as num?)?.toDouble() ?? 0.0,
+      overtimeHours: (json['overtimeHours'] as num?)?.toDouble() ?? 0.0,
+      makeupPunchCount: json['makeupPunchCount'] as int? ?? 0,
+      statisticsTime: json['statisticsTime'] as String? ?? '',
     );
   }
 }
@@ -328,40 +322,52 @@ class AttendanceRule {
 }
 
 /// 日历记录 - 对应 AttendanceCalendarRecordVo
+/// 后端只返回 date, status, clockInTime, clockOutTime
+/// 其他字段从这些基础字段派生
 class CalendarRecord {
   final String date;
-  final String scheduleType;
-  final bool hasClockIn;
-  final bool hasClockOut;
-  final List<String> anomalies;
+
+  /// 后端返回的原始状态: normal / late / early / absent / rest / future
+  final String status;
   final String? clockInTime;
   final String? clockOutTime;
-  final double workHours;
 
   const CalendarRecord({
     required this.date,
-    required this.scheduleType,
-    required this.hasClockIn,
-    required this.hasClockOut,
-    required this.anomalies,
+    required this.status,
     this.clockInTime,
     this.clockOutTime,
-    required this.workHours,
   });
+
+  /// 派生: 排班类型 (用于日历显示)
+  String get scheduleType => status == 'rest' ? 'rest' : 'work';
+
+  /// 派生: 是否有上班打卡
+  bool get hasClockIn => clockInTime != null && clockInTime!.isNotEmpty;
+
+  /// 派生: 是否有下班打卡
+  bool get hasClockOut => clockOutTime != null && clockOutTime!.isNotEmpty;
+
+  /// 派生: 异常列表 (用于日历着色)
+  List<String> get anomalies {
+    switch (status) {
+      case 'late':
+        return ['late'];
+      case 'early':
+        return ['early'];
+      case 'absent':
+        return ['missing_clock_in', 'missing_clock_out'];
+      default:
+        return [];
+    }
+  }
 
   factory CalendarRecord.fromJson(Map<String, dynamic> json) {
     return CalendarRecord(
       date: json['date'] as String? ?? '',
-      scheduleType: json['scheduleType'] as String? ?? '',
-      hasClockIn: json['hasClockIn'] as bool? ?? false,
-      hasClockOut: json['hasClockOut'] as bool? ?? false,
-      anomalies: (json['anomalies'] as List<dynamic>?)
-              ?.map((e) => e as String)
-              .toList() ??
-          [],
+      status: json['status'] as String? ?? '',
       clockInTime: json['clockInTime'] as String?,
       clockOutTime: json['clockOutTime'] as String?,
-      workHours: (json['workHours'] as num?)?.toDouble() ?? 0.0,
     );
   }
 }
@@ -369,7 +375,9 @@ class CalendarRecord {
 /// 成员详情 - 对应 AttendanceMemberDetailVo
 class MemberDetail {
   final MemberInfo? memberInfo;
-  final MonthlyStats? stats;
+
+  /// 后端返回 AttendanceTeamMemberStatsVo 类型
+  final TeamMemberStats? stats;
   final List<CalendarRecord> calendarRecords;
 
   const MemberDetail({
@@ -386,7 +394,7 @@ class MemberDetail {
               json['memberInfo'] as Map<String, dynamic>),
       stats: json['stats'] == null
           ? null
-          : MonthlyStats.fromJson(json['stats'] as Map<String, dynamic>),
+          : TeamMemberStats.fromJson(json['stats'] as Map<String, dynamic>),
       calendarRecords: (json['calendarRecords'] as List<dynamic>?)
               ?.map((e) =>
                   CalendarRecord.fromJson(e as Map<String, dynamic>))

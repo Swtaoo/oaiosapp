@@ -82,6 +82,7 @@ class _WorkPageState extends ConsumerState<WorkPage> {
                         children: [
                           _buildCategory(
                             title: '学习经历',
+                            icon: Icons.school_outlined,
                             items: educationList,
                             onAdd: () => context.push(
                               '/register/work-detail/education-add',
@@ -98,6 +99,7 @@ class _WorkPageState extends ConsumerState<WorkPage> {
                           ),
                           _buildCategory(
                             title: '培训经历',
+                            icon: Icons.menu_book_outlined,
                             items: trainingList,
                             onAdd: () => context.push(
                               '/register/work-detail/training-add',
@@ -114,6 +116,7 @@ class _WorkPageState extends ConsumerState<WorkPage> {
                           ),
                           _buildCategory(
                             title: '就职经历',
+                            icon: Icons.work_outline_rounded,
                             items: workList,
                             onAdd: () => context.push(
                               '/register/work-detail/work-add',
@@ -130,6 +133,7 @@ class _WorkPageState extends ConsumerState<WorkPage> {
                           ),
                           _buildCategory(
                             title: '家庭成员',
+                            icon: Icons.people_outline_rounded,
                             items: familyList,
                             onAdd: () => context.push(
                               '/register/work-detail/family-add',
@@ -158,13 +162,13 @@ class _WorkPageState extends ConsumerState<WorkPage> {
     required List<T> items,
     required VoidCallback onAdd,
     required Widget Function(T item, int index) itemBuilder,
+    required IconData icon,
   }) {
     return Container(
       margin: const EdgeInsets.symmetric(
         horizontal: AppSpacing.pagePadding,
         vertical: AppSpacing.s6,
       ),
-      padding: const EdgeInsets.all(AppSpacing.cardPaddingMd),
       decoration: BoxDecoration(
         color: AppColors.backgroundPrimary,
         borderRadius: BorderRadius.circular(12),
@@ -179,50 +183,84 @@ class _WorkPageState extends ConsumerState<WorkPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                title,
-                style: AppTypography.callout.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              GestureDetector(
-                onTap: onAdd,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.s12,
-                    vertical: AppSpacing.s4,
-                  ),
+          // 分区标题行
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.pagePadding,
+              AppSpacing.s14,
+              AppSpacing.s8,
+              AppSpacing.s10,
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 28,
+                  height: 28,
                   decoration: BoxDecoration(
-                    color: AppColors.primary,
-                    borderRadius: BorderRadius.circular(14),
+                    color: AppColors.primary50,
+                    borderRadius: BorderRadius.circular(7),
                   ),
+                  child: Icon(icon, size: 15, color: AppColors.primary),
+                ),
+                const SizedBox(width: AppSpacing.s10),
+                Expanded(
                   child: Text(
-                    '+ 添加',
-                    style: AppTypography.footnote.copyWith(
-                      color: AppColors.backgroundPrimary,
+                    title,
+                    style: AppTypography.callout.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
                     ),
                   ),
                 ),
-              ),
-            ],
-          ),
-          if (items.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: AppSpacing.s20),
-              child: Center(
-                child: Text(
-                  '暂无数据，点击添加',
-                  style: AppTypography.footnote.copyWith(
-                    color: AppColors.neutral400,
+                // 添加按钮 — 保证 44pt 触摸区
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: onAdd,
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.s12,
+                        vertical: AppSpacing.s10,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.add_rounded,
+                            size: 16,
+                            color: AppColors.primary,
+                          ),
+                          const SizedBox(width: AppSpacing.s2),
+                          Text(
+                            '添加',
+                            style: AppTypography.footnote.copyWith(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            )
-          else
+              ],
+            ),
+          ),
+          Divider(
+            height: 0.5,
+            thickness: 0.5,
+            indent: AppSpacing.pagePadding,
+            endIndent: AppSpacing.pagePadding,
+            color: AppColors.neutral200,
+          ),
+          if (items.isEmpty)
+            _EmptyHint(onAdd: onAdd)
+          else ...[
+            const SizedBox(height: AppSpacing.s8),
             ...items.asMap().entries.map((e) => itemBuilder(e.value, e.key)),
+            const SizedBox(height: AppSpacing.s8),
+          ],
         ],
       ),
     );
@@ -234,97 +272,127 @@ class _WorkPageState extends ConsumerState<WorkPage> {
     required String extra,
     required VoidCallback onTap,
   }) {
-    return GestureDetector(
+    return _RecordTile(
+      title: title,
+      subtitle: subtitle,
+      extra: extra.isNotEmpty ? extra : null,
       onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(top: AppSpacing.s10),
-        padding: const EdgeInsets.all(AppSpacing.s12),
-        decoration: BoxDecoration(
-          color: AppColors.neutral50,
-          borderRadius: BorderRadius.circular(AppSpacing.s8),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: AppTypography.formField.copyWith(
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.s4),
-                  Text(
-                    subtitle,
-                    style: AppTypography.caption1.copyWith(
-                      color: AppColors.neutral500,
-                    ),
-                  ),
-                  if (extra.isNotEmpty) ...[
-                    const SizedBox(height: AppSpacing.s2),
-                    Text(
-                      extra,
-                      style: AppTypography.caption1.copyWith(
-                        color: AppColors.neutral400,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            const Icon(
-              Icons.chevron_right,
-              color: AppColors.separatorNonOpaque,
-              size: 20,
-            ),
-          ],
-        ),
-      ),
     );
   }
 
   Widget _buildFamilyItem(PersonnelFamilyRelationVo item, int index) {
-    return GestureDetector(
+    return _RecordTile(
+      title: item.familyName ?? '未填写',
+      subtitle: item.relation ?? '未填写',
+      extra: item.contactPhone?.isNotEmpty == true ? item.contactPhone : null,
       onTap: () => context.push(
         '/register/work-detail/family-detail?index=$index',
       ),
-      child: Container(
-        margin: const EdgeInsets.only(top: AppSpacing.s10),
-        padding: const EdgeInsets.all(AppSpacing.s12),
-        decoration: BoxDecoration(
-          color: AppColors.neutral50,
-          borderRadius: BorderRadius.circular(AppSpacing.s8),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.familyName ?? '未填写',
-                    style: AppTypography.formField.copyWith(
-                      fontWeight: FontWeight.w500,
+    );
+  }
+}
+
+// ─── 记录卡片 ───────────────────────────────────
+class _RecordTile extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final String? extra;
+  final VoidCallback onTap;
+
+  const _RecordTile({
+    required this.title,
+    required this.subtitle,
+    this.extra,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.pagePadding,
+            vertical: AppSpacing.s12,
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: AppTypography.callout.copyWith(
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.textPrimary,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: AppSpacing.s4),
-                  Text(
-                    '关系: ${item.relation ?? "未填写"}  联系方式: ${item.contactPhone ?? "未填写"}',
-                    style: AppTypography.caption1.copyWith(
-                      color: AppColors.neutral500,
+                    const SizedBox(height: AppSpacing.s3),
+                    Text(
+                      subtitle,
+                      style: AppTypography.caption1.copyWith(
+                        color: AppColors.neutral500,
+                      ),
                     ),
-                  ),
-                ],
+                    if (extra != null) ...[
+                      const SizedBox(height: AppSpacing.s2),
+                      Text(
+                        extra!,
+                        style: AppTypography.caption1.copyWith(
+                          color: AppColors.neutral400,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
-            ),
-            const Icon(
-              Icons.chevron_right,
-              color: AppColors.separatorNonOpaque,
-              size: 20,
-            ),
-          ],
+              const SizedBox(width: AppSpacing.s8),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: AppColors.neutral300,
+                size: 18,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── 空状态引导 ──────────────────────────────────
+class _EmptyHint extends StatelessWidget {
+  final VoidCallback onAdd;
+  const _EmptyHint({required this.onAdd});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onAdd,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.s20),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.add_circle_outline_rounded,
+                size: 28,
+                color: AppColors.neutral300,
+              ),
+              const SizedBox(height: AppSpacing.s6),
+              Text(
+                '点击添加',
+                style: AppTypography.footnote.copyWith(
+                  color: AppColors.neutral400,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

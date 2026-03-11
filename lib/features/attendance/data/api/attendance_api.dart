@@ -16,12 +16,14 @@ class AttendanceApi {
     required String punchTime,
     required int userId,
     int? punchCategory,
+    int? punchType,
   }) async {
     final response = await _dio.post('/oa/attendancePunch', data: {
       'punchLocation': punchLocation,
       'punchTime': punchTime,
       'userId': userId,
-                  'punchCategory': ?punchCategory,
+      'punchCategory': ?punchCategory,
+      'punchType': ?punchType,
     });
     return ApiResponse.fromJson(
       ensureJsonMap(response.data),

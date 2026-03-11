@@ -35,6 +35,16 @@ class OssUpload extends StatefulWidget {
   final List<UploadFileItem> initialFiles;
   final ValueChanged<({int ossId, String url})>? onSuccess;
   final ValueChanged<UploadFileItem>? onRemove;
+  final double itemSize;
+  final WrapAlignment alignment;
+  final IconData addButtonIcon;
+  final double addButtonIconSize;
+  final String addButtonText;
+  final Color addButtonIconColor;
+  final Color addButtonTextColor;
+  final Color addButtonBackgroundColor;
+  final Color addButtonBorderColor;
+  final double addButtonBorderWidth;
 
   const OssUpload({
     super.key,
@@ -43,6 +53,16 @@ class OssUpload extends StatefulWidget {
     this.initialFiles = const [],
     this.onSuccess,
     this.onRemove,
+    this.itemSize = 100,
+    this.alignment = WrapAlignment.start,
+    this.addButtonIcon = Icons.add,
+    this.addButtonIconSize = 28,
+    this.addButtonText = '上传图片',
+    this.addButtonIconColor = AppColors.primary,
+    this.addButtonTextColor = AppColors.neutral500,
+    this.addButtonBackgroundColor = AppColors.neutral50,
+    this.addButtonBorderColor = AppColors.neutral300,
+    this.addButtonBorderWidth = 1,
   });
 
   @override
@@ -78,12 +98,14 @@ class _OssUploadState extends State<OssUpload> {
 
     final uid = '${DateTime.now().millisecondsSinceEpoch}-${image.name}';
     setState(() {
-      _fileList.add(UploadFileItem(
-        uid: uid,
-        url: image.path,
-        status: 'uploading',
-        progress: 0,
-      ));
+      _fileList.add(
+        UploadFileItem(
+          uid: uid,
+          url: image.path,
+          status: 'uploading',
+          progress: 0,
+        ),
+      );
     });
 
     try {
@@ -95,10 +117,12 @@ class _OssUploadState extends State<OssUpload> {
       final response = await dio.post(
         '${ApiConstants.baseUrl}/resource/oss/upload',
         data: formData,
-        options: Options(headers: {
-          'Authorization': 'Bearer $token',
-          'clientid': ApiConstants.clientId,
-        }),
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $token',
+            'clientid': ApiConstants.clientId,
+          },
+        ),
         onSendProgress: (sent, total) {
           if (total > 0) {
             final progress = (sent / total * 100).round();
@@ -120,13 +144,20 @@ class _OssUploadState extends State<OssUpload> {
       final data = response.data is Map<String, dynamic>
           ? response.data as Map<String, dynamic>
           : response.data is Map
-              ? Map<String, dynamic>.from(response.data as Map)
-              : <String, dynamic>{};
+          ? Map<String, dynamic>.from(response.data as Map)
+          : <String, dynamic>{};
       if (data['code'] == 200 && data['data'] != null) {
         final ossData = data['data'] is Map<String, dynamic>
             ? data['data'] as Map<String, dynamic>
             : Map<String, dynamic>.from(data['data'] as Map);
-        final ossId = ossData['ossId'] as int?;
+        final rawOssId = ossData['ossId'];
+        final ossId = rawOssId is int
+            ? rawOssId
+            : rawOssId is num
+            ? rawOssId.toInt()
+            : rawOssId is String
+            ? int.tryParse(rawOssId)
+            : null;
         final ossUrl = ossData['url'] as String? ?? image.path;
 
         setState(() {
@@ -143,6 +174,16 @@ class _OssUploadState extends State<OssUpload> {
         widget.onSuccess?.call((ossId: ossId ?? 0, url: ossUrl));
       } else {
         _handleError(uid, data['msg']?.toString() ?? '上传失败');
+      }
+    } on DioException catch (e) {
+      debugPrint('[OssUpload] Upload error: $e');
+      final err = e.response?.data;
+      if (err is Map && err['msg'] != null) {
+        _handleError(uid, err['msg'].toString());
+      } else if (err is Map && err['message'] != null) {
+        _handleError(uid, err['message'].toString());
+      } else {
+        _handleError(uid, '上传失败');
       }
     } catch (e) {
       debugPrint('[OssUpload] Upload error: $e');
@@ -168,6 +209,7 @@ class _OssUploadState extends State<OssUpload> {
   @override
   Widget build(BuildContext context) {
     return Wrap(
+      alignment: widget.alignment,
       spacing: AppSpacing.s10,
       runSpacing: AppSpacing.s10,
       children: [
@@ -183,9 +225,10 @@ class _OssUploadState extends State<OssUpload> {
   }
 
   Widget _buildItem(UploadFileItem file, int index) {
+    final size = widget.itemSize;
     return SizedBox(
-      width: 100,
-      height: 100,
+      width: size,
+      height: size,
       child: Stack(
         children: [
           ClipRRect(
@@ -193,8 +236,8 @@ class _OssUploadState extends State<OssUpload> {
             child: file.url.startsWith('http')
                 ? Image.network(
                     file.url,
-                    width: 100,
-                    height: 100,
+                    width: size,
+                    height: size,
                     fit: BoxFit.cover,
                     errorBuilder: (_, _, _) => Container(
                       color: AppColors.neutral100,
@@ -206,8 +249,8 @@ class _OssUploadState extends State<OssUpload> {
                   )
                 : Image.file(
                     File(file.url),
-                    width: 100,
-                    height: 100,
+                    width: size,
+                    height: size,
                     fit: BoxFit.cover,
                     errorBuilder: (_, _, _) => Container(
                       color: AppColors.neutral100,
@@ -265,22 +308,30 @@ class _OssUploadState extends State<OssUpload> {
     return GestureDetector(
       onTap: _pickImage,
       child: Container(
-        width: 100,
-        height: 100,
+        width: widget.itemSize,
+        height: widget.itemSize,
         decoration: BoxDecoration(
-          border: Border.all(color: AppColors.neutral300, style: BorderStyle.solid),
+          border: Border.all(
+            color: widget.addButtonBorderColor,
+            width: widget.addButtonBorderWidth,
+            style: BorderStyle.solid,
+          ),
           borderRadius: BorderRadius.circular(AppSpacing.s8),
-          color: AppColors.neutral50,
+          color: widget.addButtonBackgroundColor,
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.add, size: 28, color: AppColors.primary),
+            Icon(
+              widget.addButtonIcon,
+              size: widget.addButtonIconSize,
+              color: widget.addButtonIconColor,
+            ),
             const SizedBox(height: AppSpacing.s4),
             Text(
-              '上传图片',
+              widget.addButtonText,
               style: AppTypography.caption1.copyWith(
-                color: AppColors.neutral500,
+                color: widget.addButtonTextColor,
               ),
             ),
           ],

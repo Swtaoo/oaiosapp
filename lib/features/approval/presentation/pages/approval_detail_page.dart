@@ -22,8 +22,7 @@ class ApprovalDetailPage extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<ApprovalDetailPage> createState() =>
-      _ApprovalDetailPageState();
+  ConsumerState<ApprovalDetailPage> createState() => _ApprovalDetailPageState();
 }
 
 class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
@@ -32,6 +31,7 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
 
   // 资金
   FundApplicationVo? _fundData;
+  String? _paymentVoucher;
 
   // 工资
   SalaryInfoVo? _salaryData;
@@ -77,13 +77,14 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
     // 所有节点都已处理
     // 检查是否有驳回
     final hasRejected = _approvalFlowList.any(
-        (f) => !f.isDeleted && (f.status == '2' || f.status == 'rejected'));
+      (f) => !f.isDeleted && (f.status == '2' || f.status == 'rejected'),
+    );
     if (hasRejected) return 'approved';
 
     // 全部通过
     if (widget.approvalObjectType == '1' &&
-        _fundData?.paymentVoucher != null &&
-        _fundData!.paymentVoucher!.isNotEmpty) {
+        _paymentVoucher != null &&
+        _paymentVoucher!.isNotEmpty) {
       return 'paid';
     }
     return 'approved';
@@ -98,24 +99,31 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
       switch (widget.approvalObjectType) {
         case '1': // 资金
           final res = await api.getFundApplication(widget.objectId);
-          if (res.isSuccess && res.data != null) _fundData = res.data;
+          if (res.isSuccess && res.data != null) {
+            _fundData = res.data;
+            _paymentVoucher = res.data?.paymentVoucher;
+          }
         case '2': // 工资
           final res = await api.getSalaryInfo(widget.objectId);
           if (res.isSuccess && res.data != null) _salaryData = res.data;
-          final detailRes =
-              await api.getSalaryDetailList(salaryId: widget.objectId);
+          final detailRes = await api.getSalaryDetailList(
+            salaryId: widget.objectId,
+          );
           if (detailRes.isSuccess && detailRes.rows != null) {
-            _salaryDetailList =
-                detailRes.rows!.where((e) => !e.isDeleted).toList();
+            _salaryDetailList = detailRes.rows!
+                .where((e) => !e.isDeleted)
+                .toList();
           }
         case '3': // 报销
           final res = await api.getReimbursement(widget.objectId);
           if (res.isSuccess && res.data != null) _reimbursementData = res.data;
           final detailRes = await api.getReimbursementDetailList(
-              reimbursementId: widget.objectId);
+            reimbursementId: widget.objectId,
+          );
           if (detailRes.isSuccess && detailRes.rows != null) {
-            _reimbursementDetailList =
-                detailRes.rows!.where((e) => !e.isDeleted).toList();
+            _reimbursementDetailList = detailRes.rows!
+                .where((e) => !e.isDeleted)
+                .toList();
           }
       }
 
@@ -125,9 +133,7 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
         objectId: widget.objectId,
       );
       if (flowRes.isSuccess && flowRes.rows != null) {
-        _approvalFlowList = flowRes.rows!
-            .where((e) => !e.isDeleted)
-            .toList()
+        _approvalFlowList = flowRes.rows!.where((e) => !e.isDeleted).toList()
           ..sort((a, b) {
             final timeA = a.createTime != null
                 ? DateTime.tryParse(a.createTime!)?.millisecondsSinceEpoch ?? 0
@@ -138,7 +144,6 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
             return timeA.compareTo(timeB);
           });
       }
-
     } catch (e, stack) {
       debugPrint('[ApprovalDetail] _loadData error: $e\n$stack');
     } finally {
@@ -165,8 +170,7 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
     required String opinion,
     required String status,
   }) async {
-    final userId =
-        ref.read(currentUserProvider)?.effectiveUserId ?? 0;
+    final userId = ref.read(currentUserProvider)?.effectiveUserId ?? 0;
     if (userId <= 0) return;
 
     final pendingFlow = _findMyPendingFlow(userId);
@@ -185,17 +189,19 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
     setState(() => _isSubmitting = true);
     try {
       final api = ref.read(approvalApiProvider);
-      final res = await api.submitApproval(ApprovalFlowSubmit(
-        id: pendingFlow.id!,
-        approvalObjectType: widget.approvalObjectType,
-        objectId: widget.objectId,
-        approverId: userId,
-        approvalOpinion: opinion,
-        approvalRemark: opinion,
-        nextApproverId: pendingFlow.nextApproverId ?? 0,
-        isFinalApproval: pendingFlow.isFinalApproval ?? 0,
-        status: status,
-      ));
+      final res = await api.submitApproval(
+        ApprovalFlowSubmit(
+          id: pendingFlow.id!,
+          approvalObjectType: widget.approvalObjectType,
+          objectId: widget.objectId,
+          approverId: userId,
+          approvalOpinion: opinion,
+          approvalRemark: opinion,
+          nextApproverId: pendingFlow.nextApproverId ?? 0,
+          isFinalApproval: pendingFlow.isFinalApproval ?? 0,
+          status: status,
+        ),
+      );
       if (res.isSuccess && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -205,6 +211,7 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
         );
         // 刷新列表后返回
         ref.read(approvalListProvider.notifier).refresh();
+        ref.invalidate(myPendingCountProvider);
         await Future.delayed(const Duration(milliseconds: 800));
         if (mounted) context.pop();
       } else if (mounted) {
@@ -218,10 +225,7 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('提交审批失败'),
-            backgroundColor: Colors.red,
-          ),
+          const SnackBar(content: Text('提交审批失败'), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -237,6 +241,7 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
         paymentVoucher: voucherUrl,
       );
       if (res.isSuccess && mounted) {
+        setState(() => _paymentVoucher = voucherUrl);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text('支付凭证上传成功'),
@@ -288,8 +293,7 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
-              padding:
-                  const EdgeInsets.fromLTRB(16, 16, 16, 120),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
               child: Column(
                 children: [
                   // 类型相关的信息卡片
@@ -307,15 +311,9 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
                     currentUserId: currentUserId,
                     objectId: widget.objectId,
                     approvalObjectType: widget.approvalObjectType,
-                    paymentVoucher: _fundData?.paymentVoucher,
-                    onSubmit: ({
-                      required opinion,
-                      required status,
-                    }) =>
-                        _handleSubmit(
-                      opinion: opinion,
-                      status: status,
-                    ),
+                    paymentVoucher: _paymentVoucher,
+                    onSubmit: ({required opinion, required status}) =>
+                        _handleSubmit(opinion: opinion, status: status),
                     onUploadPaymentVoucher: _handleUploadPaymentVoucher,
                   ),
                 ],
@@ -393,8 +391,11 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
                           color: AppColors.separatorNonOpaque,
                           borderRadius: BorderRadius.circular(6),
                         ),
-                        child: Icon(Icons.broken_image_outlined,
-                            color: AppColors.textTertiary, size: 28),
+                        child: Icon(
+                          Icons.broken_image_outlined,
+                          color: AppColors.textTertiary,
+                          size: 28,
+                        ),
                       ),
                     ),
                   ),
@@ -416,18 +417,24 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
         children: [
           _sectionHeader('工资申请信息'),
           _infoRow('应发月份', _salaryData?.paymentDate ?? '-'),
-          _infoRow('基本工资总额',
-              '\u00A5${formatAmount(_salaryData?.basicSalaryTotal)}'),
           _infoRow(
-              '补贴总额', '\u00A5${formatAmount(_salaryData?.subsidyTotal)}'),
-          _infoRow('保险公积金总额',
-              '\u00A5${formatAmount(_salaryData?.insuranceFundTotal)}'),
-          _infoRow('应发金额总额',
-              '\u00A5${formatAmount(_salaryData?.payableAmountTotal)}'),
-          _infoRow('实发金额总额',
-              '\u00A5${formatAmount(_salaryData?.actualAmountTotal)}'),
+            '基本工资总额',
+            '\u00A5${formatAmount(_salaryData?.basicSalaryTotal)}',
+          ),
+          _infoRow('补贴总额', '\u00A5${formatAmount(_salaryData?.subsidyTotal)}'),
           _infoRow(
-              '未发金额', '\u00A5${formatAmount(_salaryData?.unpaidAmount)}'),
+            '保险公积金总额',
+            '\u00A5${formatAmount(_salaryData?.insuranceFundTotal)}',
+          ),
+          _infoRow(
+            '应发金额总额',
+            '\u00A5${formatAmount(_salaryData?.payableAmountTotal)}',
+          ),
+          _infoRow(
+            '实发金额总额',
+            '\u00A5${formatAmount(_salaryData?.actualAmountTotal)}',
+          ),
+          _infoRow('未发金额', '\u00A5${formatAmount(_salaryData?.unpaidAmount)}'),
           _infoRow(
             '总金额',
             '\u00A5${formatAmount(_salaryData?.unpaidAmount)}',
@@ -456,10 +463,7 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
         padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
           border: Border(
-            top: BorderSide(
-              color: AppColors.separatorNonOpaque,
-              width: 0.5,
-            ),
+            top: BorderSide(color: AppColors.separatorNonOpaque, width: 0.5),
           ),
         ),
         child: Row(
@@ -481,19 +485,23 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
                     spacing: 8,
                     children: [
                       _miniLabel('工资'),
-                      _miniValue(
-                          '\u00A5${formatAmount(item.basicSalary)}'),
-                      Text('|',
-                          style: TextStyle(
-                              color: AppColors.separatorNonOpaque,
-                              fontSize: 13)),
+                      _miniValue('\u00A5${formatAmount(item.basicSalary)}'),
+                      Text(
+                        '|',
+                        style: TextStyle(
+                          color: AppColors.separatorNonOpaque,
+                          fontSize: 13,
+                        ),
+                      ),
                       _miniLabel('扣款'),
-                      _miniValue(
-                          '\u00A5${formatAmount(item.totalDeduction)}'),
-                      Text('|',
-                          style: TextStyle(
-                              color: AppColors.separatorNonOpaque,
-                              fontSize: 13)),
+                      _miniValue('\u00A5${formatAmount(item.totalDeduction)}'),
+                      Text(
+                        '|',
+                        style: TextStyle(
+                          color: AppColors.separatorNonOpaque,
+                          fontSize: 13,
+                        ),
+                      ),
                       _miniLabel('实发'),
                       Text(
                         '\u00A5${formatAmount(item.actualSalary)}',
@@ -510,10 +518,7 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
             ),
             Text(
               '\u203A',
-              style: TextStyle(
-                fontSize: 16,
-                color: AppColors.textQuaternary,
-              ),
+              style: TextStyle(fontSize: 16, color: AppColors.textQuaternary),
             ),
           ],
         ),
@@ -533,9 +538,7 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
           _infoRow('部门', _reimbursementData?.departmentName ?? '-'),
           _infoRow('申请人', _reimbursementData?.applicantName ?? '-'),
           _infoRow('申请日期', _reimbursementData?.applyDate ?? '-'),
-          _infoRow(
-              '报销项目',
-              _reimbursementData?.reimbursementProjectName ?? '-'),
+          _infoRow('报销项目', _reimbursementData?.reimbursementProjectName ?? '-'),
           _infoRow(
             '总金额',
             '\u00A5${formatAmount(_reimbursementData?.totalAmount)}',
@@ -547,8 +550,9 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
           if (_reimbursementDetailList.isEmpty)
             _emptyDetail('暂无报销明细')
           else
-            ..._reimbursementDetailList
-                .map((item) => _reimbursementDetailItem(item)),
+            ..._reimbursementDetailList.map(
+              (item) => _reimbursementDetailItem(item),
+            ),
         ],
       ),
     );
@@ -560,10 +564,7 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
       padding: const EdgeInsets.symmetric(vertical: 8),
       decoration: BoxDecoration(
         border: Border(
-          top: BorderSide(
-            color: AppColors.separatorNonOpaque,
-            width: 0.5,
-          ),
+          top: BorderSide(color: AppColors.separatorNonOpaque, width: 0.5),
         ),
       ),
       child: Row(
@@ -580,9 +581,11 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
               ),
               clipBehavior: Clip.antiAlias,
               child: urls.isNotEmpty
-                  ? Image.network(urls.first,
+                  ? Image.network(
+                      urls.first,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => _placeholderCircle('票'))
+                      errorBuilder: (_, _, _) => _placeholderCircle('票'),
+                    )
                   : _placeholderCircle('票'),
             ),
           ),
@@ -595,7 +598,9 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                        fontSize: 14, color: AppColors.textPrimary),
+                      fontSize: 14,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
                 ),
                 Text(
@@ -616,41 +621,38 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
 
   // ========== 公共辅助 ==========
   BoxDecoration _cardDecoration() => BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      );
+    color: Colors.white,
+    borderRadius: BorderRadius.circular(12),
+    boxShadow: [
+      BoxShadow(
+        color: Colors.black.withValues(alpha: 0.04),
+        blurRadius: 10,
+        offset: const Offset(0, 2),
+      ),
+    ],
+  );
 
   Widget _sectionHeader(String title) => Padding(
+    padding: const EdgeInsets.only(bottom: 16),
+    child: DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: AppColors.separatorNonOpaque, width: 0.5),
+        ),
+      ),
+      child: Padding(
         padding: const EdgeInsets.only(bottom: 16),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(
-                color: AppColors.separatorNonOpaque,
-                width: 0.5,
-              ),
-            ),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.only(bottom: 16),
-            child: Text(
-              title,
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
-              ),
-            ),
+        child: Text(
+          title,
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textPrimary,
           ),
         ),
-      );
+      ),
+    ),
+  );
 
   Widget _infoRow(String label, String value, {bool isAmount = false}) =>
       Padding(
@@ -662,10 +664,7 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
               width: 100,
               child: Text(
                 label,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: AppColors.textSecondary,
-                ),
+                style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
               ),
             ),
             Expanded(
@@ -683,65 +682,49 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
       );
 
   Widget _detailSectionHeader(String title) => Padding(
-        padding: const EdgeInsets.only(top: 6, bottom: 10),
-        child: Text(
-          title,
-          style: TextStyle(
-            fontSize: 14,
-            color: AppColors.textSecondary,
-          ),
-        ),
-      );
+    padding: const EdgeInsets.only(top: 6, bottom: 10),
+    child: Text(
+      title,
+      style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+    ),
+  );
 
   /// 上下布局的字段标签
   Widget _verticalFieldLabel(String label) => Text(
-        label,
-        style: TextStyle(
-          fontSize: 13,
-          color: AppColors.textTertiary,
-        ),
-      );
+    label,
+    style: TextStyle(fontSize: 13, color: AppColors.textTertiary),
+  );
 
   /// 上下布局的字段（标签在上，值在下）
   Widget _verticalField(String label, String value) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _verticalFieldLabel(label),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 14,
-              color: AppColors.textPrimary,
-            ),
-          ),
-        ],
-      );
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _verticalFieldLabel(label),
+      const SizedBox(height: 4),
+      Text(value, style: TextStyle(fontSize: 14, color: AppColors.textPrimary)),
+    ],
+  );
 
   Widget _emptyDetail(String text) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        child: Text(
-          text,
-          style: TextStyle(fontSize: 13, color: AppColors.textTertiary),
-        ),
-      );
+    padding: const EdgeInsets.symmetric(vertical: 10),
+    child: Text(
+      text,
+      style: TextStyle(fontSize: 13, color: AppColors.textTertiary),
+    ),
+  );
 
   Widget _placeholderCircle(String text) => Center(
-        child: Text(
-          text,
-          style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
-        ),
-      );
+    child: Text(
+      text,
+      style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+    ),
+  );
 
-  Widget _miniLabel(String text) => Text(
-        text,
-        style: TextStyle(fontSize: 13, color: AppColors.textTertiary),
-      );
+  Widget _miniLabel(String text) =>
+      Text(text, style: TextStyle(fontSize: 13, color: AppColors.textTertiary));
 
-  Widget _miniValue(String text) => Text(
-        text,
-        style: TextStyle(fontSize: 13, color: AppColors.textPrimary),
-      );
+  Widget _miniValue(String text) =>
+      Text(text, style: TextStyle(fontSize: 13, color: AppColors.textPrimary));
 
   void _previewImages(List<String> urls) {
     // TODO: 实现图片预览（全屏 PageView）

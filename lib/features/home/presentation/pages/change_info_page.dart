@@ -16,7 +16,9 @@ final _registerApiProvider = Provider<RegisterApi>((ref) {
 });
 
 class ChangeInfoPage extends ConsumerStatefulWidget {
-  const ChangeInfoPage({super.key});
+  final int? personnelId;
+
+  const ChangeInfoPage({super.key, this.personnelId});
 
   @override
   ConsumerState<ChangeInfoPage> createState() => _ChangeInfoPageState();
@@ -36,8 +38,8 @@ class _ChangeInfoPageState extends ConsumerState<ChangeInfoPage> {
   }
 
   Future<void> _loadData() async {
-    final user = ref.read(currentUserProvider);
-    final pid = user?.effectiveUserId;
+    final pid =
+        widget.personnelId ?? ref.read(currentUserProvider)?.effectiveUserId;
     if (pid == null || pid <= 0) {
       setState(() => _isLoading = false);
       return;
@@ -101,7 +103,7 @@ class _ChangeInfoPageState extends ConsumerState<ChangeInfoPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.backgroundGroupedPrimary,
-      appBar: AppBar(title: const Text('个人信息')),
+      appBar: AppBar(title: const Text('人员信息')),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
@@ -118,8 +120,16 @@ class _ChangeInfoPageState extends ConsumerState<ChangeInfoPage> {
                     _buildIdCardSection(),
                     _buildBankCardSection(),
                     _buildEntryPlanSection(),
-                    _buildResumeSection('学习经历', Icons.school_outlined, _filterByType(1)),
-                    _buildResumeSection('培训经历', Icons.menu_book_outlined, _filterByType(2)),
+                    _buildResumeSection(
+                      '学习经历',
+                      Icons.school_outlined,
+                      _filterByType(1),
+                    ),
+                    _buildResumeSection(
+                      '培训经历',
+                      Icons.menu_book_outlined,
+                      _filterByType(2),
+                    ),
                     _buildWorkSection(),
                     _buildFamilySection(),
                     const SizedBox(height: 16),
@@ -136,7 +146,8 @@ class _ChangeInfoPageState extends ConsumerState<ChangeInfoPage> {
     final info = _basicInfo;
     final name = info?.name ?? '未填写';
     final initial = name.isNotEmpty ? name[0] : '?';
-    final avatarUrl = _buildImageUrl(info?.avatar) ?? _buildImageUrl(info?.personnelPhoto);
+    final avatarUrl =
+        _buildImageUrl(info?.avatar) ?? _buildImageUrl(info?.personnelPhoto);
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 4),
       padding: const EdgeInsets.all(20),
@@ -189,7 +200,8 @@ class _ChangeInfoPageState extends ConsumerState<ChangeInfoPage> {
                 const SizedBox(height: 4),
                 Text(
                   [
-                    if (info?.genderText != null && info?.gender != null) info!.genderText,
+                    if (info?.genderText != null && info?.gender != null)
+                      info!.genderText,
                     if (info?.age != null) '${info!.age}岁',
                     if (info?.phone != null) info!.phone,
                   ].join('  '),
@@ -231,9 +243,13 @@ class _ChangeInfoPageState extends ConsumerState<ChangeInfoPage> {
               children: [
                 Icon(icon, size: 18, color: AppColors.primary),
                 const SizedBox(width: 8),
-                Text(title,
-                    style: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w600)),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ],
             ),
           ),
@@ -255,9 +271,13 @@ class _ChangeInfoPageState extends ConsumerState<ChangeInfoPage> {
             children: [
               SizedBox(
                 width: 100,
-                child: Text(label,
-                    style: const TextStyle(
-                        fontSize: 14, color: AppColors.neutral500)),
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: AppColors.neutral500,
+                  ),
+                ),
               ),
               Expanded(
                 child: Text(
@@ -265,8 +285,9 @@ class _ChangeInfoPageState extends ConsumerState<ChangeInfoPage> {
                   textAlign: TextAlign.end,
                   style: TextStyle(
                     fontSize: 14,
-                    color:
-                        isEmpty ? AppColors.neutral400 : AppColors.textPrimary,
+                    color: isEmpty
+                        ? AppColors.neutral400
+                        : AppColors.textPrimary,
                   ),
                 ),
               ),
@@ -274,7 +295,12 @@ class _ChangeInfoPageState extends ConsumerState<ChangeInfoPage> {
           ),
         ),
         if (!isLast)
-          const Divider(height: 1, indent: 16, endIndent: 16, color: AppColors.neutral200),
+          const Divider(
+            height: 1,
+            indent: 16,
+            endIndent: 16,
+            color: AppColors.neutral200,
+          ),
       ],
     );
   }
@@ -295,9 +321,10 @@ class _ChangeInfoPageState extends ConsumerState<ChangeInfoPage> {
           children: [
             Icon(Icons.inbox_outlined, size: 32, color: AppColors.neutral300),
             const SizedBox(height: 8),
-            Text(text,
-                style:
-                    const TextStyle(fontSize: 13, color: AppColors.neutral400)),
+            Text(
+              text,
+              style: const TextStyle(fontSize: 13, color: AppColors.neutral400),
+            ),
           ],
         ),
       ),
@@ -308,27 +335,35 @@ class _ChangeInfoPageState extends ConsumerState<ChangeInfoPage> {
 
   Widget _buildBasicInfoSection() {
     final info = _basicInfo;
-    return _section('基本信息', Icons.person_outline, _cells([
-      ('姓名', info?.name),
-      ('性别', info?.genderText),
-      ('联系电话', info?.phone),
-      ('邮箱', info?.email),
-      ('民族', info?.ethnicity),
-      ('籍贯', info?.nativePlace),
-      ('出生年月', info?.birthDate),
-      ('年龄', info?.age != null ? '${info!.age}岁' : null),
-    ]));
+    return _section(
+      '基本信息',
+      Icons.person_outline,
+      _cells([
+        ('姓名', info?.name),
+        ('性别', info?.genderText),
+        ('联系电话', info?.phone),
+        ('邮箱', info?.email),
+        ('民族', info?.ethnicity),
+        ('籍贯', info?.nativePlace),
+        ('出生年月', info?.birthDate),
+        ('年龄', info?.age != null ? '${info!.age}岁' : null),
+      ]),
+    );
   }
 
   Widget _buildBodySection() {
     final info = _basicInfo;
-    return _section('身体与状态', Icons.favorite_outline, _cells([
-      ('身高', info?.height != null ? '${info!.height}cm' : null),
-      ('体重', info?.weight != null ? '${info!.weight}kg' : null),
-      ('血型', info?.bloodType),
-      ('政治面貌', info?.politicalStatus),
-      ('婚姻状况', info?.maritalStatusText),
-    ]));
+    return _section(
+      '身体与状态',
+      Icons.favorite_outline,
+      _cells([
+        ('身高', info?.height != null ? '${info!.height}cm' : null),
+        ('体重', info?.weight != null ? '${info!.weight}kg' : null),
+        ('血型', info?.bloodType),
+        ('政治面貌', info?.politicalStatus),
+        ('婚姻状况', info?.maritalStatusText),
+      ]),
+    );
   }
 
   Widget _buildEntrySection() {
@@ -339,9 +374,6 @@ class _ChangeInfoPageState extends ConsumerState<ChangeInfoPage> {
         ('特长', info?.specialty),
         ('重大疾病', info?.hasMajorDisease == 1 ? '是' : '否'),
         ('竞业协议', info?.hasNonCompeteAgreement == 1 ? '是' : '否'),
-      ]),
-      _photoRow([
-        ('个人照片', info?.personnelPhoto),
       ]),
     ]);
   }
@@ -376,18 +408,38 @@ class _ChangeInfoPageState extends ConsumerState<ChangeInfoPage> {
 
   Widget _buildEntryPlanSection() {
     final plan = _entryPlan;
-    return _section('入职规划', Icons.trending_up_outlined, _cells([
-      ('应聘职位', plan?.appliedPosition),
-      ('期望薪金', plan?.expectedSalary != null ? _formatSalary(plan!.expectedSalary) : null),
-      ('能否加班', plan?.canOvertime == 1 ? '是' : (plan?.canOvertime == 0 ? '否' : null)),
-      ('能否外地工作', plan?.canWorkRemote == 1 ? '是' : (plan?.canWorkRemote == 0 ? '否' : null)),
-      ('职业规划', plan?.careerPlanning),
-      ('自我评价', plan?.selfEvaluation),
-    ]));
+    return _section(
+      '入职规划',
+      Icons.trending_up_outlined,
+      _cells([
+        ('应聘职位', plan?.appliedPosition),
+        (
+          '期望薪金',
+          plan?.expectedSalary != null
+              ? _formatSalary(plan!.expectedSalary)
+              : null,
+        ),
+        (
+          '能否加班',
+          plan?.canOvertime == 1 ? '是' : (plan?.canOvertime == 0 ? '否' : null),
+        ),
+        (
+          '能否外地工作',
+          plan?.canWorkRemote == 1
+              ? '是'
+              : (plan?.canWorkRemote == 0 ? '否' : null),
+        ),
+        ('职业规划', plan?.careerPlanning),
+        ('自我评价', plan?.selfEvaluation),
+      ]),
+    );
   }
 
   Widget _buildResumeSection(
-      String title, IconData icon, List<PersonnelResumeVo> list) {
+    String title,
+    IconData icon,
+    List<PersonnelResumeVo> list,
+  ) {
     return _section(title, icon, [
       if (list.isEmpty)
         _emptyState('暂无$title')
@@ -476,25 +528,40 @@ class _ChangeInfoPageState extends ConsumerState<ChangeInfoPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title,
-                        style: const TextStyle(
-                            fontSize: 14, fontWeight: FontWeight.w500)),
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        Icon(Icons.calendar_today_outlined,
-                            size: 12, color: AppColors.neutral400),
+                        Icon(
+                          Icons.calendar_today_outlined,
+                          size: 12,
+                          color: AppColors.neutral400,
+                        ),
                         const SizedBox(width: 4),
-                        Text(dateRange,
-                            style: const TextStyle(
-                                fontSize: 12, color: AppColors.neutral400)),
+                        Text(
+                          dateRange,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.neutral400,
+                          ),
+                        ),
                       ],
                     ),
                     if (subtitle.isNotEmpty) ...[
                       const SizedBox(height: 3),
-                      Text(subtitle,
-                          style: const TextStyle(
-                              fontSize: 12, color: AppColors.neutral500)),
+                      Text(
+                        subtitle,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.neutral500,
+                        ),
+                      ),
                     ],
                     if (fullUrl != null) ...[
                       const SizedBox(height: 8),
@@ -507,7 +574,12 @@ class _ChangeInfoPageState extends ConsumerState<ChangeInfoPage> {
           ),
         ),
         if (!isLast)
-          const Divider(height: 1, indent: 36, endIndent: 16, color: AppColors.neutral200),
+          const Divider(
+            height: 1,
+            indent: 36,
+            endIndent: 16,
+            color: AppColors.neutral200,
+          ),
       ],
     );
   }
@@ -530,9 +602,10 @@ class _ChangeInfoPageState extends ConsumerState<ChangeInfoPage> {
                 child: Text(
                   item.relation ?? '亲属',
                   style: const TextStyle(
-                      fontSize: 12,
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.w500),
+                    fontSize: 12,
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -543,35 +616,47 @@ class _ChangeInfoPageState extends ConsumerState<ChangeInfoPage> {
                     Text(
                       item.familyName ?? '未填写',
                       style: const TextStyle(
-                          fontSize: 14, fontWeight: FontWeight.w500),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        Icon(Icons.phone_outlined,
-                            size: 12, color: AppColors.neutral400),
+                        Icon(
+                          Icons.phone_outlined,
+                          size: 12,
+                          color: AppColors.neutral400,
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           item.contactPhone ?? '未填写',
                           style: const TextStyle(
-                              fontSize: 12, color: AppColors.neutral500),
+                            fontSize: 12,
+                            color: AppColors.neutral500,
+                          ),
                         ),
                         if (item.age != null) ...[
                           const SizedBox(width: 12),
                           Text(
                             '${item.age}岁',
                             style: const TextStyle(
-                                fontSize: 12, color: AppColors.neutral400),
+                              fontSize: 12,
+                              color: AppColors.neutral400,
+                            ),
                           ),
                         ],
                       ],
                     ),
-                    if (item.occupation != null && item.occupation!.isNotEmpty) ...[
+                    if (item.occupation != null &&
+                        item.occupation!.isNotEmpty) ...[
                       const SizedBox(height: 2),
                       Text(
                         '职业: ${item.occupation}',
                         style: const TextStyle(
-                            fontSize: 12, color: AppColors.neutral400),
+                          fontSize: 12,
+                          color: AppColors.neutral400,
+                        ),
                       ),
                     ],
                   ],
@@ -581,7 +666,12 @@ class _ChangeInfoPageState extends ConsumerState<ChangeInfoPage> {
           ),
         ),
         if (!isLast)
-          const Divider(height: 1, indent: 16, endIndent: 16, color: AppColors.neutral200),
+          const Divider(
+            height: 1,
+            indent: 16,
+            endIndent: 16,
+            color: AppColors.neutral200,
+          ),
       ],
     );
   }
@@ -601,7 +691,12 @@ class _ChangeInfoPageState extends ConsumerState<ChangeInfoPage> {
         children: [
           for (var i = 0; i < validPhotos.length; i++) ...[
             if (i > 0) const SizedBox(width: 12),
-            Expanded(child: _photoThumbnail(validPhotos[i].$2!, label: validPhotos[i].$1)),
+            Expanded(
+              child: _photoThumbnail(
+                validPhotos[i].$2!,
+                label: validPhotos[i].$1,
+              ),
+            ),
           ],
         ],
       ),
@@ -629,8 +724,11 @@ class _ChangeInfoPageState extends ConsumerState<ChangeInfoPage> {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Center(
-                  child: Icon(Icons.broken_image_outlined,
-                      size: 32, color: AppColors.neutral300),
+                  child: Icon(
+                    Icons.broken_image_outlined,
+                    size: 32,
+                    color: AppColors.neutral300,
+                  ),
                 ),
               ),
               loadingBuilder: (_, child, progress) {
@@ -654,9 +752,10 @@ class _ChangeInfoPageState extends ConsumerState<ChangeInfoPage> {
           ),
           if (label != null) ...[
             const SizedBox(height: 4),
-            Text(label,
-                style: const TextStyle(
-                    fontSize: 11, color: AppColors.neutral400)),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 11, color: AppColors.neutral400),
+            ),
           ],
         ],
       ),
@@ -672,8 +771,10 @@ class _ChangeInfoPageState extends ConsumerState<ChangeInfoPage> {
           appBar: AppBar(
             backgroundColor: Colors.black,
             foregroundColor: Colors.white,
-            title: Text(title ?? '图片预览',
-                style: const TextStyle(color: Colors.white)),
+            title: Text(
+              title ?? '图片预览',
+              style: const TextStyle(color: Colors.white),
+            ),
           ),
           body: Center(
             child: InteractiveViewer(
@@ -685,11 +786,16 @@ class _ChangeInfoPageState extends ConsumerState<ChangeInfoPage> {
                 errorBuilder: (_, _, _) => const Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.broken_image_outlined,
-                        size: 64, color: Colors.white54),
+                    Icon(
+                      Icons.broken_image_outlined,
+                      size: 64,
+                      color: Colors.white54,
+                    ),
                     SizedBox(height: 16),
-                    Text('图片加载失败',
-                        style: TextStyle(color: Colors.white54, fontSize: 16)),
+                    Text(
+                      '图片加载失败',
+                      style: TextStyle(color: Colors.white54, fontSize: 16),
+                    ),
                   ],
                 ),
               ),

@@ -37,9 +37,19 @@ class _EducationAddPageState extends ConsumerState<EducationAddPage> {
   }
 
   Future<void> _loadData() async {
-    final regState = ref.read(registerProvider);
-    final eduList =
-        regState.resumeList.where((e) => e.experienceType == 1).toList();
+    var eduList = ref
+        .read(registerProvider)
+        .resumeList
+        .where((e) => e.experienceType == 1)
+        .toList();
+    if (eduList.isEmpty) {
+      await ref.read(registerProvider.notifier).loadResumeList();
+      eduList = ref
+          .read(registerProvider)
+          .resumeList
+          .where((e) => e.experienceType == 1)
+          .toList();
+    }
     if (widget.index! < eduList.length) {
       final item = eduList[widget.index!];
       setState(() {
@@ -75,7 +85,14 @@ class _EducationAddPageState extends ConsumerState<EducationAddPage> {
     try {
       final api = ref.read(registerApiProvider);
       final pid = ref.read(registerProvider).personnelId;
-      if (pid == null) return;
+      if (pid == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('未获取到人员信息，请返回重试')),
+          );
+        }
+        return;
+      }
       final data = PersonnelResumeSubmit(
         id: _existingId,
         personnelId: pid,
@@ -141,9 +158,7 @@ class _EducationAddPageState extends ConsumerState<EducationAddPage> {
             required: true,
             child: TextField(
               controller: _unitNameCtl,
-              decoration: const InputDecoration.collapsed(
-                hintText: '请输入学校名称',
-              ),
+              decoration: formInputDecoration(hint: '请输入学校名称'),
               textAlign: TextAlign.end,
               style: AppTypography.formField,
             ),
@@ -153,9 +168,7 @@ class _EducationAddPageState extends ConsumerState<EducationAddPage> {
             required: true,
             child: TextField(
               controller: _majorCtl,
-              decoration: const InputDecoration.collapsed(
-                hintText: '请输入专业',
-              ),
+              decoration: formInputDecoration(hint: '请输入专业'),
               textAlign: TextAlign.end,
               style: AppTypography.formField,
             ),
@@ -182,9 +195,7 @@ class _EducationAddPageState extends ConsumerState<EducationAddPage> {
             isLast: true,
             child: TextField(
               controller: _educationCtl,
-              decoration: const InputDecoration.collapsed(
-                hintText: '请输入学历',
-              ),
+              decoration: formInputDecoration(hint: '请输入学历'),
               textAlign: TextAlign.end,
               style: AppTypography.formField,
             ),

@@ -1,7 +1,7 @@
 name: oa_flutter
 description: "OA Personnel Management App"
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.10+10
 
 environment:
   sdk: ^3.11.0
@@ -31,14 +31,24 @@ dependencies:
   logger: ^2.5.0
   image_picker: ^1.1.2
   file_picker: ^10.0.0
+  scrollable_positioned_list: ^0.3.8
+  webview_flutter: ^4.13.1
 
   # Document preview
   flutter_pdfview: ^1.4.0
   path_provider: ^2.1.5
   open_file: ^3.5.10
 
+  # App update
+  package_info_plus: ^8.0.0
+
   # WebSocket
   web_socket_channel: ^3.0.2
+
+  # Push & Notifications
+  jpush_flutter: ^2.5.2
+  flutter_local_notifications: ^18.0.1
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:

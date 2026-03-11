@@ -181,6 +181,9 @@ class ApprovalListNotifier extends StateNotifier<ApprovalListState> {
   final Ref _ref;
   static const _pageSize = 10;
 
+  /// 用于丢弃快速切换筛选时的过期响应
+  int _refreshGeneration = 0;
+
   ApprovalListNotifier(this._ref) : super(const ApprovalListState());
 
   ApprovalApi get _api => _ref.read(approvalApiProvider);
@@ -190,18 +193,22 @@ class ApprovalListNotifier extends StateNotifier<ApprovalListState> {
 
   /// 设置筛选类型并刷新
   Future<void> setFilter(String? filterType) async {
-    state = state.copyWith(filterType: () => filterType);
+    state = state.copyWith(
+      filterType: () => filterType,
+      items: [],
+    );
     await refresh();
   }
 
   /// 设置搜索关键字并刷新
   Future<void> setSearchQuery(String query) async {
-    state = state.copyWith(searchQuery: query);
+    state = state.copyWith(searchQuery: query, items: []);
     await refresh();
   }
 
   /// 刷新（重置加载第一页）
   Future<void> refresh() async {
+    final gen = ++_refreshGeneration;
     state = state.copyWith(isLoading: true, currentPage: 0, hasMore: true);
     try {
       final query = state.searchQuery.trim();
@@ -211,6 +218,8 @@ class ApprovalListNotifier extends StateNotifier<ApprovalListState> {
         pageNum: 1,
         pageSize: _pageSize,
       );
+      // 丢弃过期响应：用户在请求期间又切换了筛选
+      if (gen != _refreshGeneration) return;
       if (res.isSuccess && res.rows != null) {
         var filtered = res.rows!.where((e) => !e.isDeleted).toList();
         // 先渲染列表，再异步纠正 displayStatus
@@ -228,7 +237,9 @@ class ApprovalListNotifier extends StateNotifier<ApprovalListState> {
         state = state.copyWith(isLoading: false, items: []);
       }
     } catch (e) { debugPrint('[approval_provider] Error: $e');
-      state = state.copyWith(isLoading: false, items: []);
+      if (gen == _refreshGeneration) {
+        state = state.copyWith(isLoading: false, items: []);
+      }
     }
   }
 
@@ -330,9 +341,8 @@ class ApprovalListNotifier extends StateNotifier<ApprovalListState> {
     final userId = _currentUserId;
     if (userId <= 0) return;
 
-    // 找出需要校验的项（已经是 myPending 的不需要再校验）
+    // 所有条目都需要校验（后端 myPending/pending 均可能不准确）
     final pendingItems = items.where((item) =>
-        item.displayStatus != 'myPending' &&
         item.objectId != null &&
         item.approvalObjectType != null).toList();
 
@@ -389,7 +399,7 @@ class ApprovalListNotifier extends StateNotifier<ApprovalListState> {
     if (corrections.isEmpty || !mounted) return;
 
     // 应用纠正
-    final corrected = state.items.map((item) {
+    var corrected = state.items.map((item) {
       final key = '${item.approvalObjectType}_${item.objectId}';
       final correctedStatus = corrections[key];
       if (correctedStatus != null && item.displayStatus != correctedStatus) {
@@ -397,6 +407,13 @@ class ApprovalListNotifier extends StateNotifier<ApprovalListState> {
       }
       return item;
     }).toList();
+
+    // 纠正后按当前筛选条件重新过滤，避免状态变更后条目留在错误的 Tab
+    final filter = state.filterType;
+    if (filter != null && filter.isNotEmpty) {
+      corrected =
+          corrected.where((item) => item.displayStatus == filter).toList();
+    }
 
     state = state.copyWith(items: corrected);
   }
@@ -406,4 +423,35 @@ class ApprovalListNotifier extends StateNotifier<ApprovalListState> {
 final approvalListProvider =
     StateNotifierProvider<ApprovalListNotifier, ApprovalListState>((ref) {
   return ApprovalListNotifier(ref);
+});
+
+/// 首页「待我审批」数量（用于首页待办摘要）
+///
+/// 约定：与审批列表页的「待我审批」一致，即 filterType='myPending'。
+final myPendingCountProvider = FutureProvider<int>((ref) async {
+  final userId = ref.watch(currentUserProvider)?.effectiveUserId ?? 0;
+  if (userId <= 0) return 0;
+
+  // 非审批人不请求后端，避免无权限导致的噪音日志
+  final isAdmin = ref.watch(isAdminProvider);
+  if (!isAdmin) return 0;
+
+  try {
+    final api = ref.watch(approvalApiProvider);
+    // 只需要 total，pageSize 设小一点减少开销
+    final res = await api.getMyPending(
+      filterType: 'myPending',
+      pageNum: 1,
+      pageSize: 1,
+    );
+
+    if (res.isSuccess) {
+      if (res.total != null) return res.total!;
+      return (res.rows ?? const []).where((e) => !e.isDeleted).length;
+    }
+  } catch (e) {
+    debugPrint('[approval_provider] myPendingCountProvider error: $e');
+  }
+
+  return 0;
 });

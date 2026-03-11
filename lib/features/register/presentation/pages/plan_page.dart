@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../constants/register_constants.dart';
 import '../../data/models/register_models.dart';
@@ -173,9 +172,7 @@ class _PlanPageState extends ConsumerState<PlanPage> {
                             required: true,
                             child: TextField(
                               controller: _positionCtl,
-                              decoration: const InputDecoration.collapsed(
-                                hintText: '请输入应聘职位',
-                              ),
+                              decoration: formInputDecoration(hint: '请输入应聘职位'),
                               textAlign: TextAlign.end,
                               style: AppTypography.formField,
                             ),
@@ -184,9 +181,7 @@ class _PlanPageState extends ConsumerState<PlanPage> {
                             label: '期望薪资',
                             child: TextField(
                               controller: _salaryCtl,
-                              decoration: const InputDecoration.collapsed(
-                                hintText: '请输入期望薪资',
-                              ),
+                              decoration: formInputDecoration(hint: '请输入期望薪资'),
                               textAlign: TextAlign.end,
                               keyboardType: TextInputType.number,
                               style: AppTypography.formField,
@@ -213,28 +208,26 @@ class _PlanPageState extends ConsumerState<PlanPage> {
                           ),
                         ]),
                         FormSection(title: '自我评价', children: [
-                          TextField(
-                            controller: _careerCtl,
-                            decoration: InputDecoration(
-                              hintText: '请输入职业规划',
-                              border: const OutlineInputBorder(),
-                              contentPadding:
-                                  const EdgeInsets.all(AppSpacing.s12),
+                          FormRow(
+                            label: '职业规划',
+                            child: TextField(
+                              controller: _careerCtl,
+                              decoration: formInputDecoration(hint: '请输入职业规划'),
+                              textAlign: TextAlign.end,
+                              maxLines: 4,
+                              style: AppTypography.formField,
                             ),
-                            maxLines: 3,
-                            style: AppTypography.formField,
                           ),
-                          const SizedBox(height: AppSpacing.s12),
-                          TextField(
-                            controller: _evalCtl,
-                            decoration: InputDecoration(
-                              hintText: '请输入自我评价',
-                              border: const OutlineInputBorder(),
-                              contentPadding:
-                                  const EdgeInsets.all(AppSpacing.s12),
+                          FormRow(
+                            label: '自我评价',
+                            isLast: true,
+                            child: TextField(
+                              controller: _evalCtl,
+                              decoration: formInputDecoration(hint: '请输入自我评价'),
+                              textAlign: TextAlign.end,
+                              maxLines: 4,
+                              style: AppTypography.formField,
                             ),
-                            maxLines: 3,
-                            style: AppTypography.formField,
                           ),
                         ]),
                       ],

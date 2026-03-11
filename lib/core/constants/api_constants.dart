@@ -2,14 +2,17 @@
 class ApiConstants {
   ApiConstants._();
 
-  static const String baseUrl = 'http://8.140.98.157:8080';
-  static const String ossUrl = 'http://8.140.98.157:8080';
+  static const String host = '8.140.98.157';
+  static const int port = 8080;
+
+  static const String baseUrl = 'http://$host:$port';
+  static const String ossUrl = 'http://$host:$port';
   static const String clientId = 'oa_personnel_client';
-  static const Duration connectTimeout = Duration(seconds: 60);
-  static const Duration receiveTimeout = Duration(seconds: 60);
+  static const Duration connectTimeout = Duration(seconds: 10);
+  static const Duration receiveTimeout = Duration(seconds: 30);
 
   // WebSocket
-  static const String wsBaseUrl = 'ws://8.140.98.157:8080';
+  static const String wsBaseUrl = 'ws://$host:$port';
   static const String wsPath = '/resource/websocket';
 
   /// 固定审批人 ID 列表 - 对应后端 ApprovalFlowHelper.FIXED_APPROVER_IDS

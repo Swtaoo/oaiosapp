@@ -13,10 +13,8 @@ class ApprovalActions extends StatefulWidget {
   final int? objectId;
   final String? approvalObjectType;
   final String? paymentVoucher;
-  final Future<void> Function({
-    required String opinion,
-    required String status,
-  }) onSubmit;
+  final Future<void> Function({required String opinion, required String status})
+  onSubmit;
   final Future<void> Function(String paymentVoucher)? onUploadPaymentVoucher;
 
   const ApprovalActions({
@@ -37,7 +35,27 @@ class ApprovalActions extends StatefulWidget {
 
 class _ApprovalActionsState extends State<ApprovalActions> {
   final _commentController = TextEditingController();
-  String? _uploadedVoucherUrl;
+  List<String> _uploadedVoucherUrls = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _uploadedVoucherUrls = List.from(
+      parseAttachmentUrls(widget.paymentVoucher),
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant ApprovalActions oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.paymentVoucher != oldWidget.paymentVoucher) {
+      setState(() {
+        _uploadedVoucherUrls = List.from(
+          parseAttachmentUrls(widget.paymentVoucher),
+        );
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -173,8 +191,10 @@ class _ApprovalActionsState extends State<ApprovalActions> {
                 ),
               ),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFFF2F2F7),
                   borderRadius: BorderRadius.circular(6),
@@ -188,7 +208,9 @@ class _ApprovalActionsState extends State<ApprovalActions> {
                     hintStyle: TextStyle(color: AppColors.textPlaceholder),
                     border: InputBorder.none,
                     counterStyle: TextStyle(
-                        fontSize: 12, color: AppColors.textTertiary),
+                      fontSize: 12,
+                      color: AppColors.textTertiary,
+                    ),
                   ),
                   style: TextStyle(
                     fontSize: 14,
@@ -222,10 +244,7 @@ class _ApprovalActionsState extends State<ApprovalActions> {
                   ),
                   child: const Text(
                     '驳回',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                   ),
                 ),
               ),
@@ -245,8 +264,7 @@ class _ApprovalActionsState extends State<ApprovalActions> {
                       borderRadius: BorderRadius.circular(22),
                     ),
                     elevation: 4,
-                    shadowColor:
-                        AppColors.primary.withValues(alpha: 0.3),
+                    shadowColor: AppColors.primary.withValues(alpha: 0.3),
                   ),
                   child: Text(
                     widget.isSubmitting ? '提交中...' : '通过',
@@ -266,6 +284,11 @@ class _ApprovalActionsState extends State<ApprovalActions> {
 
   /// 支付凭证上传区域（仅孙林 + 资金申请）
   Widget _buildPaymentVoucherUpload() {
+    const maxVoucherCount = 5;
+    final initialFiles = _uploadedVoucherUrls
+        .map((url) => UploadFileItem(uid: url, url: url))
+        .toList();
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
@@ -274,7 +297,7 @@ class _ApprovalActionsState extends State<ApprovalActions> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.only(bottom: 16),
+            padding: const EdgeInsets.only(bottom: 12),
             child: DecoratedBox(
               decoration: BoxDecoration(
                 border: Border(
@@ -285,26 +308,79 @@ class _ApprovalActionsState extends State<ApprovalActions> {
                 ),
               ),
               child: Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: Text(
-                  '上传支付凭证',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
-                  ),
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Row(
+                  children: [
+                    Text(
+                      '上传支付凭证',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Text(
+                        '最多 $maxVoucherCount 张',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
           ),
+          Text(
+            '请上传转账/付款截图，需清晰显示金额与收款方',
+            style: TextStyle(fontSize: 12, color: AppColors.textTertiary),
+          ),
+          const SizedBox(height: 12),
           OssUpload(
-            maxCount: 1,
+            maxCount: maxVoucherCount,
+            initialFiles: initialFiles,
+            itemSize: 140,
+            alignment: WrapAlignment.center,
+            addButtonIcon: Icons.receipt_long_outlined,
+            addButtonIconSize: 30,
+            addButtonText: '上传凭证',
+            addButtonIconColor: AppColors.primary,
+            addButtonTextColor: AppColors.textSecondary,
+            addButtonBackgroundColor: const Color(0xFFF9FAFB),
+            addButtonBorderColor: AppColors.separatorNonOpaque,
+            addButtonBorderWidth: 1,
             onSuccess: (result) {
-              setState(() => _uploadedVoucherUrl = result.url);
-              widget.onUploadPaymentVoucher?.call(result.url);
+              setState(() {
+                if (!_uploadedVoucherUrls.contains(result.url)) {
+                  _uploadedVoucherUrls = [..._uploadedVoucherUrls, result.url];
+                }
+              });
+              widget.onUploadPaymentVoucher?.call(
+                _uploadedVoucherUrls.join(','),
+              );
+            },
+            onRemove: (file) {
+              setState(() {
+                _uploadedVoucherUrls.removeWhere((url) => url == file.url);
+              });
+              widget.onUploadPaymentVoucher?.call(
+                _uploadedVoucherUrls.join(','),
+              );
             },
           ),
-          if (_uploadedVoucherUrl != null)
+          if (_uploadedVoucherUrls.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Row(
@@ -312,11 +388,8 @@ class _ApprovalActionsState extends State<ApprovalActions> {
                   Icon(Icons.check_circle, size: 16, color: AppColors.success),
                   const SizedBox(width: 4),
                   Text(
-                    '凭证已上传',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: AppColors.success,
-                    ),
+                    '已上传 ${_uploadedVoucherUrls.length} 张',
+                    style: TextStyle(fontSize: 13, color: AppColors.success),
                   ),
                 ],
               ),
@@ -361,7 +434,9 @@ class _ApprovalActionsState extends State<ApprovalActions> {
                     const Spacer(),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFFAF52DE).withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(4),
@@ -404,8 +479,11 @@ class _ApprovalActionsState extends State<ApprovalActions> {
                         color: AppColors.separatorNonOpaque,
                         borderRadius: BorderRadius.circular(6),
                       ),
-                      child: Icon(Icons.broken_image_outlined,
-                          color: AppColors.textTertiary, size: 28),
+                      child: Icon(
+                        Icons.broken_image_outlined,
+                        color: AppColors.textTertiary,
+                        size: 28,
+                      ),
                     ),
                   ),
                 );
@@ -440,10 +518,7 @@ class _ApprovalActionsState extends State<ApprovalActions> {
                 const SizedBox(height: 2),
                 Text(
                   description,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: AppColors.textTertiary,
-                  ),
+                  style: TextStyle(fontSize: 13, color: AppColors.textTertiary),
                 ),
               ],
             ),
@@ -454,14 +529,14 @@ class _ApprovalActionsState extends State<ApprovalActions> {
   }
 
   BoxDecoration _cardDecoration() => BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      );
+    color: Colors.white,
+    borderRadius: BorderRadius.circular(12),
+    boxShadow: [
+      BoxShadow(
+        color: Colors.black.withValues(alpha: 0.04),
+        blurRadius: 10,
+        offset: const Offset(0, 2),
+      ),
+    ],
+  );
 }

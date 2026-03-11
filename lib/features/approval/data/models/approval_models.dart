@@ -302,15 +302,21 @@ class FundApplicationSubmit {
         'applyDepartment': applyDepartment,
         'applicant': applicant,
         'applyAmount': applyAmount,
-        'applicantSignature': ?applicantSignature,
+        if (applicantSignature != null && applicantSignature!.isNotEmpty)
+          'applicantSignature': applicantSignature,
         'status': status,
-        'fundProject': ?fundProject,
-        'fundCostDesc': ?fundCostDesc,
-        'accountName': ?accountName,
-        'accountNumber': ?accountNumber,
-        'bankName': ?bankName,
-        'contactPerson': ?contactPerson,
-        'attachment': ?attachment,
+        if (fundProject != null && fundProject!.isNotEmpty)
+          'fundProject': fundProject,
+        if (fundCostDesc != null && fundCostDesc!.isNotEmpty)
+          'fundCostDesc': fundCostDesc,
+        if (accountName != null && accountName!.isNotEmpty)
+          'accountName': accountName,
+        if (accountNumber != null && accountNumber!.isNotEmpty)
+          'accountNumber': accountNumber,
+        if (bankName != null && bankName!.isNotEmpty) 'bankName': bankName,
+        if (contactPerson != null && contactPerson!.isNotEmpty)
+          'contactPerson': contactPerson,
+        if (attachment != null && attachment!.isNotEmpty) 'attachment': attachment,
       };
 }
 
@@ -413,6 +419,81 @@ class ReimbursementDetailVo {
   }
 
   bool get isDeleted => delFlag == 2;
+}
+
+/// 报销主表提交请求体
+class ReimbursementSubmit {
+  final int departmentId;
+  final String? departmentName;
+  final int applicantId;
+  final String? applicantName;
+  final String applyDate; // yyyy-MM-dd
+  final int reimbursementProjectId;
+  final String? reimbursementProjectName;
+  final num totalAmount;
+  final String status; // '0' 待审批
+  final String? remark;
+
+  const ReimbursementSubmit({
+    required this.departmentId,
+    this.departmentName,
+    required this.applicantId,
+    this.applicantName,
+    required this.applyDate,
+    required this.reimbursementProjectId,
+    this.reimbursementProjectName,
+    required this.totalAmount,
+    this.status = '0',
+    this.remark,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'departmentId': departmentId,
+        if (departmentName != null && departmentName!.isNotEmpty)
+          'departmentName': departmentName,
+        'applicantId': applicantId,
+        if (applicantName != null && applicantName!.isNotEmpty)
+          'applicantName': applicantName,
+        'applyDate': applyDate,
+        'reimbursementProjectId': reimbursementProjectId,
+        if (reimbursementProjectName != null &&
+            reimbursementProjectName!.isNotEmpty)
+          'reimbursementProjectName': reimbursementProjectName,
+        'totalAmount': totalAmount,
+        'status': status,
+        if (remark != null && remark!.isNotEmpty) 'remark': remark,
+      };
+}
+
+/// 报销明细提交请求体
+class ReimbursementDetailSubmit {
+  final int reimbursementId;
+  final String reimbursementDetail;
+  final String reimbursementProof; // 逗号分隔 URL
+  final num reimbursementAmount;
+  final String? category;
+  final String status; // '0' 待审批
+  final String? remark;
+
+  const ReimbursementDetailSubmit({
+    required this.reimbursementId,
+    required this.reimbursementDetail,
+    required this.reimbursementProof,
+    required this.reimbursementAmount,
+    this.category,
+    this.status = '0',
+    this.remark,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'reimbursementId': reimbursementId,
+        'reimbursementDetail': reimbursementDetail,
+        'reimbursementProof': reimbursementProof,
+        'reimbursementAmount': reimbursementAmount,
+        if (category != null && category!.isNotEmpty) 'category': category,
+        'status': status,
+        if (remark != null && remark!.isNotEmpty) 'remark': remark,
+      };
 }
 
 /// 工资信息
@@ -569,6 +650,85 @@ class PersonnelBasicInfoVo {
       name: json['name'] as String?,
       department: json['department'] as String?,
       avatar: json['avatar'] as String?,
+    );
+  }
+}
+
+// ========== 请假申请 ==========
+
+/// 请假申请提交请求体 - 对应后端 OaLeaveApplicationBo
+class LeaveApplicationSubmit {
+  final String leaveType;
+
+  /// 格式：yyyy-MM-dd HH:mm:ss（与后端 Jackson 配置对齐）
+  final String startTime;
+  final String endTime;
+  final double leaveDays;
+  final String reason;
+
+  /// 附件 URL JSON 数组字符串，可选（如 '["url1","url2"]'）
+  final String? attachments;
+
+  const LeaveApplicationSubmit({
+    required this.leaveType,
+    required this.startTime,
+    required this.endTime,
+    required this.leaveDays,
+    required this.reason,
+    this.attachments,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'leaveType': leaveType,
+        'startTime': startTime,
+        'endTime': endTime,
+        'leaveDays': leaveDays,
+        'reason': reason,
+        if (attachments != null && attachments!.isNotEmpty)
+          'attachments': attachments,
+      };
+}
+
+/// 请假申请详情 - 对应后端 OaLeaveApplicationVo
+class LeaveApplicationVo {
+  final int? id;
+  final int? userId;
+  final String? leaveType;
+  final String? startTime;
+  final String? endTime;
+
+  /// BigDecimal 由后端序列化为 String，如 "1.5"
+  final String? leaveDays;
+  final String? reason;
+  final String? attachments;
+  final String? status; // '0'待审批 '1'已通过 '2'已驳回
+  final String? createTime;
+
+  const LeaveApplicationVo({
+    this.id,
+    this.userId,
+    this.leaveType,
+    this.startTime,
+    this.endTime,
+    this.leaveDays,
+    this.reason,
+    this.attachments,
+    this.status,
+    this.createTime,
+  });
+
+  factory LeaveApplicationVo.fromJson(Map<String, dynamic> json) {
+    return LeaveApplicationVo(
+      id: _safeInt(json['id']),
+      userId: _safeInt(json['userId']),
+      leaveType: json['leaveType'] as String?,
+      startTime: json['startTime'] as String?,
+      endTime: json['endTime'] as String?,
+      leaveDays: json['leaveDays']?.toString(),
+      reason: json['reason'] as String?,
+      attachments: json['attachments'] as String?,
+      status: json['status']?.toString(),
+      createTime: json['createTime'] as String?,
     );
   }
 }

@@ -44,6 +44,12 @@ class _ApprovalListPageState extends ConsumerState<ApprovalListPage> {
     super.initState();
     _scrollController.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      // 同步 Tab 选中状态与 provider 中的 filterType
+      final currentFilter = ref.read(approvalListProvider).filterType;
+      final index = _tabs.indexWhere((t) => t.filterType == currentFilter);
+      if (index >= 0 && index != _selectedTabIndex) {
+        setState(() => _selectedTabIndex = index);
+      }
       ref.read(approvalListProvider.notifier).refresh();
     });
   }
@@ -183,6 +189,10 @@ class _ApprovalListPageState extends ConsumerState<ApprovalListPage> {
           contentPadding:
               const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
             borderSide: BorderSide.none,
           ),

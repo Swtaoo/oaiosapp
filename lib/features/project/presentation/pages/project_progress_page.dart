@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import '../../../../core/utils/date_utils.dart';
 import '../../../auth/providers/auth_provider.dart';
@@ -35,9 +36,12 @@ class ProjectProgressPage extends ConsumerStatefulWidget {
 class _ProjectProgressPageState extends ConsumerState<ProjectProgressPage>
     with WidgetsBindingObserver {
   final _inputCtl = TextEditingController();
-  final _scrollCtl = ScrollController();
+  final _itemScrollCtl = ItemScrollController();
   final _imagePicker = ImagePicker();
   int _prevMessageCount = 0;
+
+  /// 当前高亮的消息 ID（点击引用后短暂高亮）
+  int? _highlightedMessageId;
 
   int get _currentUserId =>
       ref.read(currentUserProvider)?.effectiveUserId ?? 0;
@@ -54,7 +58,6 @@ class _ProjectProgressPageState extends ConsumerState<ProjectProgressPage>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _inputCtl.dispose();
-    _scrollCtl.dispose();
     super.dispose();
   }
 
@@ -62,9 +65,13 @@ class _ProjectProgressPageState extends ConsumerState<ProjectProgressPage>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     final notifier = ref.read(chatNotifierProvider(widget.projectId).notifier);
     if (state == AppLifecycleState.resumed) {
+      // 恢复"正在查看"标记，抑制前台时的本地通知
+      notifier.setCurrentViewingProject(widget.projectId);
       notifier.fetchMessages();
       notifier.startAutoRefresh();
     } else if (state == AppLifecycleState.paused) {
+      // 清除"正在查看"标记，允许后台时触发本地通知
+      notifier.clearCurrentViewingProject();
       notifier.stopAutoRefresh();
     }
   }
@@ -75,9 +82,11 @@ class _ProjectProgressPageState extends ConsumerState<ProjectProgressPage>
 
     _inputCtl.clear();
     final notifier = ref.read(chatNotifierProvider(widget.projectId).notifier);
+    final atPersonnelIds = notifier.extractAtPersonnelIds(text);
     final success = await notifier.sendMessage(
       personnelId: _currentUserId,
       chatContent: text,
+      atPersonnelIds: atPersonnelIds,
     );
     if (!success && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -144,16 +153,55 @@ class _ProjectProgressPageState extends ConsumerState<ProjectProgressPage>
     }
   }
 
+  /// reverse 模式下，index 0 = 底部（最新消息）
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollCtl.hasClients) {
-        _scrollCtl.animateTo(
-          _scrollCtl.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
+      if (_itemScrollCtl.isAttached) {
+        _itemScrollCtl.jumpTo(index: 0);
       }
     });
+  }
+
+  /// 滚动到指定消息并高亮
+  void _scrollToMessage(int messageId) {
+    final messages = ref.read(chatNotifierProvider(widget.projectId)).messages;
+    final msgIndex = messages.indexWhere((m) => m.id == messageId);
+    if (msgIndex < 0) return;
+
+    final listIndex = _messageIndexToListIndex(msgIndex, messages);
+    final totalItems = _calculateItemCount(messages);
+    // reverse 模式: builder index = totalItems - 1 - forwardIndex
+    final reverseIndex = totalItems - 1 - listIndex;
+
+    _itemScrollCtl.scrollTo(
+      index: reverseIndex,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+      alignment: 0.3,
+    ).then((_) => _highlightMessage(messageId));
+  }
+
+  /// 短暂高亮指定消息
+  void _highlightMessage(int messageId) {
+    setState(() => _highlightedMessageId = messageId);
+    Future.delayed(const Duration(milliseconds: 1500), () {
+      if (mounted) setState(() => _highlightedMessageId = null);
+    });
+  }
+
+  /// 将消息数组下标转为 ListView 的 item index（含时间分隔线）
+  int _messageIndexToListIndex(int msgIndex, List messages) {
+    int listIndex = 0;
+    for (int i = 0; i <= msgIndex; i++) {
+      final needSep = i == 0 || shouldShowTimeSeparator(
+        messages[i - 1].createTime,
+        messages[i].createTime,
+      );
+      if (needSep) listIndex++; // 时间分隔线
+      if (i == msgIndex) return listIndex;
+      listIndex++; // 消息本身
+    }
+    return listIndex;
   }
 
   void _showMembersDialog() {
@@ -184,7 +232,7 @@ class _ProjectProgressPageState extends ConsumerState<ProjectProgressPage>
         if (msg.id != null) notifier.removeLocalMessage(msg.id!);
       case ChatMessageAction.revoke:
         if (msg.id != null) {
-          notifier.revokeMessage(msg.id!).then((success) {
+          notifier.revokeMessage(msg.id!, _currentUserId).then((success) {
             if (!success && mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('撤回失败')),
@@ -209,32 +257,35 @@ class _ProjectProgressPageState extends ConsumerState<ProjectProgressPage>
     );
   }
 
-  /// 计算消息发送状态
-  String? _getSendStatus(String? localTempId, Set<String> sendingIds, Set<String> failedIds) {
-    if (localTempId == null) return null;
-    if (sendingIds.contains(localTempId)) return 'sending';
-    if (failedIds.contains(localTempId)) return 'failed';
-    return null;
-  }
-
   @override
   Widget build(BuildContext context) {
     final chatState = ref.watch(chatNotifierProvider(widget.projectId));
     final notifier = ref.read(chatNotifierProvider(widget.projectId).notifier);
 
-    // 新消息到达时自动滚动到底部
-    if (chatState.messages.length > _prevMessageCount || _prevMessageCount == 0) {
-      _scrollToBottom();
+    // reverse 模式: 初始位置已在底部，只需处理新消息到达时的自动滚动
+    if (!chatState.isLoading) {
+      if (_prevMessageCount > 0 && chatState.messages.length > _prevMessageCount) {
+        _scrollToBottom();
+      }
+      _prevMessageCount = chatState.messages.length;
     }
-    _prevMessageCount = chatState.messages.length;
 
     // 构建带时间分隔线的消息列表
     final messages = chatState.messages;
 
+    // 构建成员姓名集合，用于 @提及高亮
+    final memberNames = chatState.members
+        .where((m) => m.name != null && m.name!.isNotEmpty)
+        .map((m) => m.name!)
+        .toSet();
+
     return Scaffold(
       backgroundColor: ChatColors.background,
       appBar: AppBar(
-        title: Text(widget.projectName.isNotEmpty ? widget.projectName : '项目进度讨论'),
+        title: Text(
+          '${widget.projectName.isNotEmpty ? widget.projectName : '项目进度讨论'}'
+          '${chatState.members.isNotEmpty ? '(${chatState.members.length})' : ''}',
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.people_outline),
@@ -247,24 +298,33 @@ class _ProjectProgressPageState extends ConsumerState<ProjectProgressPage>
           : Column(
               children: [
                 Expanded(
-                  child: ListView.builder(
-                    controller: _scrollCtl,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    itemCount: _calculateItemCount(messages),
-                    itemBuilder: (context, index) =>
-                        _buildItem(index, messages, chatState, notifier),
-                  ),
+                  child: Builder(builder: (context) {
+                    final itemCount = _calculateItemCount(messages);
+                    return ScrollablePositionedList.builder(
+                      itemScrollController: _itemScrollCtl,
+                      reverse: true,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      itemCount: itemCount,
+                      itemBuilder: (context, index) {
+                        // reverse 模式: index 0 在底部，需要映射回正序索引
+                        final forwardIndex = itemCount - 1 - index;
+                        return _buildItem(forwardIndex, messages, chatState, notifier, memberNames);
+                      },
+                    );
+                  }),
                 ),
                 ChatInputBarV2(
                   controller: _inputCtl,
                   isSending: chatState.isSending,
                   onSend: _sendMessage,
+                  members: chatState.members,
                   replyTarget: chatState.replyTarget,
                   replyTargetSenderName: chatState.replyTarget != null
                       ? notifier.resolveSenderName(
                           chatState.replyTarget!.personnelId,
                           _currentUserId,
                           _currentUserName,
+                          personnelName: chatState.replyTarget!.personnelName,
                         )
                       : null,
                   onCancelReply: () => notifier.cancelReply(),
@@ -293,7 +353,7 @@ class _ProjectProgressPageState extends ConsumerState<ProjectProgressPage>
   }
 
   /// 构建列表项（时间分隔线或消息气泡）
-  Widget _buildItem(int index, List messages, chatState, notifier) {
+  Widget _buildItem(int index, List messages, chatState, notifier, Set<String> memberNames) {
     // 遍历消息，计算实际位置
     int itemIndex = 0;
     for (int i = 0; i < messages.length; i++) {
@@ -313,28 +373,32 @@ class _ProjectProgressPageState extends ConsumerState<ProjectProgressPage>
 
       if (itemIndex == index) {
         final msg = messages[i];
+        final msgId = msg.id;
         final isOwn = msg.personnelId == _currentUserId;
+
         final bubble = ChatMessageBubble(
           senderName: notifier.resolveSenderName(
             msg.personnelId,
             _currentUserId,
             _currentUserName,
+            personnelName: msg.personnelName,
           ),
           content: msg.chatContent ?? '',
           timeText: formatChatTime(msg.createTime),
           isOwn: isOwn,
           imageUrl: msg.imageUrl ?? msg.fileUrl,
           message: msg,
-          sendStatus: _getSendStatus(
-            msg.localTempId,
-            chatState.sendingIds,
-            chatState.failedIds,
-          ),
+          memberNames: memberNames,
+          onReplyTap: msg.replyId != null && msg.replyId! > 0
+              ? () => _scrollToMessage(msg.replyId!)
+              : null,
         );
+
+        final isHighlighted = _highlightedMessageId == msgId;
 
         // 右滑回复手势 + 长按菜单
         return Dismissible(
-          key: ValueKey(msg.id ?? msg.localTempId ?? index),
+          key: ValueKey(msg.id ?? index),
           direction: DismissDirection.startToEnd,
           confirmDismiss: (_) async {
             notifier.startReply(msg);
@@ -349,7 +413,16 @@ class _ProjectProgressPageState extends ConsumerState<ProjectProgressPage>
           ),
           child: GestureDetector(
             onLongPressStart: (details) => _showMessageMenu(context, msg, details),
-            child: bubble,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 500),
+              decoration: BoxDecoration(
+                color: isHighlighted
+                    ? const Color(0xFF07C160).withValues(alpha: 0.12)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: bubble,
+            ),
           ),
         );
       }

@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
 
-/// 注册模块底部提交按钮 -- 白底 + 顶部阴影 + SafeArea
+/// 注册模块底部提交按钮 — 白底 + 顶部分隔线 + SafeArea + 触感反馈
 class SubmitButton extends StatelessWidget {
   final String label;
   final bool isSubmitting;
@@ -21,18 +22,16 @@ class SubmitButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final effectiveBg = backgroundColor ?? AppColors.primary;
     return Container(
       decoration: BoxDecoration(
         color: AppColors.backgroundPrimary,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 8,
-            offset: const Offset(0, -2),
-          ),
-        ],
+        border: const Border(
+          top: BorderSide(color: AppColors.neutral200, width: 0.5),
+        ),
       ),
       child: SafeArea(
+        top: false,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(
             AppSpacing.pagePadding,
@@ -42,35 +41,61 @@ class SubmitButton extends StatelessWidget {
           ),
           child: SizedBox(
             width: double.infinity,
-            height: 50,
-            child: ElevatedButton(
-              onPressed: isSubmitting ? null : onPressed,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: backgroundColor ?? AppColors.primary,
-                foregroundColor: Colors.white,
-                disabledBackgroundColor:
-                    (backgroundColor ?? AppColors.primary).withValues(alpha: 0.5),
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(9),
+            height: 52,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              child: ElevatedButton(
+                onPressed: isSubmitting
+                    ? null
+                    : () {
+                        HapticFeedback.lightImpact();
+                        onPressed?.call();
+                      },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: effectiveBg,
+                  foregroundColor: Colors.white,
+                  disabledBackgroundColor: effectiveBg.withValues(alpha: 0.45),
+                  elevation: 0,
+                  shadowColor: Colors.transparent,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(26),
+                  ),
+                ),
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 180),
+                  child: isSubmitting
+                      ? Row(
+                          key: const ValueKey('loading'),
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(width: AppSpacing.s8),
+                            Text(
+                              '提交中...',
+                              style: AppTypography.body.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        )
+                      : Text(
+                          key: const ValueKey('label'),
+                          label,
+                          style: AppTypography.body.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
                 ),
               ),
-              child: isSubmitting
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : Text(
-                      label,
-                      style: AppTypography.body.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
-                    ),
             ),
           ),
         ),

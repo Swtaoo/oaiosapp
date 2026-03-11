@@ -40,11 +40,19 @@ class _WorkAddPageState extends ConsumerState<WorkAddPage> {
   }
 
   Future<void> _loadData() async {
-    final list = ref
+    var list = ref
         .read(registerProvider)
         .resumeList
         .where((e) => e.experienceType == 3)
         .toList();
+    if (list.isEmpty) {
+      await ref.read(registerProvider.notifier).loadResumeList();
+      list = ref
+          .read(registerProvider)
+          .resumeList
+          .where((e) => e.experienceType == 3)
+          .toList();
+    }
     if (widget.index! < list.length) {
       final item = list[widget.index!];
       setState(() {
@@ -82,7 +90,14 @@ class _WorkAddPageState extends ConsumerState<WorkAddPage> {
     try {
       final api = ref.read(registerApiProvider);
       final pid = ref.read(registerProvider).personnelId;
-      if (pid == null) return;
+      if (pid == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('未获取到人员信息，请返回重试')),
+          );
+        }
+        return;
+      }
       final data = PersonnelResumeSubmit(
         id: _existingId,
         personnelId: pid,
@@ -164,9 +179,7 @@ class _WorkAddPageState extends ConsumerState<WorkAddPage> {
             required: true,
             child: TextField(
               controller: _unitNameCtl,
-              decoration: const InputDecoration.collapsed(
-                hintText: '请输入单位名称',
-              ),
+              decoration: formInputDecoration(hint: '请输入单位名称'),
               textAlign: TextAlign.end,
               style: AppTypography.formField,
             ),
@@ -176,9 +189,7 @@ class _WorkAddPageState extends ConsumerState<WorkAddPage> {
             required: true,
             child: TextField(
               controller: _positionCtl,
-              decoration: const InputDecoration.collapsed(
-                hintText: '请输入所任职务',
-              ),
+              decoration: formInputDecoration(hint: '请输入所任职务'),
               textAlign: TextAlign.end,
               style: AppTypography.formField,
             ),
@@ -187,9 +198,7 @@ class _WorkAddPageState extends ConsumerState<WorkAddPage> {
             label: '薪资范围',
             child: TextField(
               controller: _salaryCtl,
-              decoration: const InputDecoration.collapsed(
-                hintText: '请输入薪资范围',
-              ),
+              decoration: formInputDecoration(hint: '请输入薪资范围'),
               textAlign: TextAlign.end,
               style: AppTypography.formField,
             ),
@@ -214,9 +223,7 @@ class _WorkAddPageState extends ConsumerState<WorkAddPage> {
             label: '离职原因',
             child: TextField(
               controller: _leaveReasonCtl,
-              decoration: const InputDecoration.collapsed(
-                hintText: '请输入离职原因',
-              ),
+              decoration: formInputDecoration(hint: '请输入离职原因'),
               textAlign: TextAlign.end,
               style: AppTypography.formField,
             ),
@@ -225,9 +232,7 @@ class _WorkAddPageState extends ConsumerState<WorkAddPage> {
             label: '证明人',
             child: TextField(
               controller: _witnessNameCtl,
-              decoration: const InputDecoration.collapsed(
-                hintText: '请输入证明人',
-              ),
+              decoration: formInputDecoration(hint: '请输入证明人'),
               textAlign: TextAlign.end,
               style: AppTypography.formField,
             ),
@@ -237,9 +242,7 @@ class _WorkAddPageState extends ConsumerState<WorkAddPage> {
             isLast: true,
             child: TextField(
               controller: _witnessContactCtl,
-              decoration: const InputDecoration.collapsed(
-                hintText: '请输入证明人联系方式',
-              ),
+              decoration: formInputDecoration(hint: '请输入证明人联系方式'),
               textAlign: TextAlign.end,
               style: AppTypography.formField,
             ),
