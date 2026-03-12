@@ -2,8 +2,8 @@
 class ApiConstants {
   ApiConstants._();
 
-  // static const String host = '8.140.98.157';
-  static const String host = '192.168.0.197';
+  static const String host = '8.140.98.157';
+  // static const String host = '192.168.0.197';
   static const int port = 8080;
 
   static const String baseUrl = 'http://$host:$port';
