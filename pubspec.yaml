@@ -40,7 +40,7 @@ dependencies:
   open_file: ^3.5.10
 
   # App update
-  package_info_plus: ^8.0.0
+  package_info_plus: ^9.0.0
 
   # WebSocket
   web_socket_channel: ^3.0.2

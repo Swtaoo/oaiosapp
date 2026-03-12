@@ -20,17 +20,24 @@ subprojects {
     project.evaluationDependsOn(":app")
 }
 
-// 旧版插件兼容：namespace + compileSdk 注入（AGP 8+ 必需）
+// 旧版插件兼容：namespace 注入（AGP 8+ 必需）
 subprojects {
     plugins.withId("com.android.library") {
         val android = extensions.getByType(com.android.build.gradle.LibraryExtension::class.java)
-        if (android.compileSdk == null || android.compileSdk!! < 35) {
-            android.compileSdk = 35
-        }
         if (android.namespace.isNullOrEmpty()) {
             android.namespace = project.group.toString().ifEmpty {
                 "com.jpush.flutter"
             }
+        }
+    }
+}
+
+// compileSdk 覆盖：所有 library 子项目评估完成后强制提升到 35
+gradle.afterProject {
+    if (plugins.hasPlugin("com.android.library")) {
+        val android = extensions.getByType(com.android.build.gradle.LibraryExtension::class.java)
+        if (android.compileSdk == null || android.compileSdk!! < 35) {
+            android.compileSdk = 35
         }
     }
 }
