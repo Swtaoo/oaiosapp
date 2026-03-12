@@ -53,6 +53,26 @@ class ProjectApi {
 
   // ========== 项目成员 ==========
 
+  /// 获取当前用户的所有项目成员记录（用于判断用户属于哪些项目）
+  /// GET /oa/projectStaff/list?personnelId=xxx&delFlag=0
+  Future<PaginatedResponse<ProjectStaffVo>> getMyStaffRecords({
+    required int personnelId,
+  }) async {
+    final response = await _dio.get(
+      '/oa/projectStaff/list',
+      queryParameters: {
+        'personnelId': personnelId,
+        'delFlag': 0,
+        'pageNum': 1,
+        'pageSize': 1000,
+      },
+    );
+    return PaginatedResponse.fromJson(
+      ensureJsonMap(response.data),
+      (json) => ProjectStaffVo.fromJson(json as Map<String, dynamic>),
+    );
+  }
+
   /// 获取项目成员列表
   /// GET /oa/projectStaff/list
   Future<PaginatedResponse<ProjectStaffVo>> getProjectStaffList({

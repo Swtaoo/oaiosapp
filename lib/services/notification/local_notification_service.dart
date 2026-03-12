@@ -29,6 +29,9 @@ class LocalNotificationNotifier extends StateNotifier<LocalNotificationState> {
   /// 全局 NavigatorKey，由 App 启动时设置
   static GlobalKey<NavigatorState>? navigatorKey;
 
+  /// 项目成员身份检查回调，由 App 启动时设置
+  static bool Function(int projectId)? isMyProjectChecker;
+
   static const _channelId = 'oa_chat_messages';
   static const _channelName = '项目消息';
   static const _channelDescription = '项目聊天消息通知';
@@ -140,6 +143,12 @@ class LocalNotificationNotifier extends StateNotifier<LocalNotificationState> {
     final projectName = parts.sublist(1).join('|'); // 项目名可能含 |
 
     if (projectId == null) return;
+
+    // 非本人所属项目，不导航
+    if (isMyProjectChecker != null && !isMyProjectChecker!(projectId)) {
+      debugPrint('[local_notification] 忽略非成员项目通知点击: projectId=$projectId');
+      return;
+    }
 
     // 使用全局 navigatorKey 进行导航
     final context = navigatorKey?.currentContext;

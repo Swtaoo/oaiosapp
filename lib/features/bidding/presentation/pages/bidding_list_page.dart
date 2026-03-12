@@ -120,25 +120,6 @@ class _BiddingListPageState extends ConsumerState<BiddingListPage> {
     return '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
   }
 
-  /// 近两天的标记为"新"
-  bool _isRecent(String? s) {
-    if (s == null || s.isEmpty) return false;
-    final d = DateTime.tryParse(s);
-    if (d == null) return false;
-    return DateTime.now().difference(d).inDays <= 2;
-  }
-
-  Color _typeColor(String? type) {
-    if (type == null || type.isEmpty) return const Color(0xFF9CA3AF);
-    if (type.contains('竞争性磋商')) return const Color(0xFF667EEA);
-    if (type.contains('公开招标')) return const Color(0xFF007AFF);
-    if (type.contains('邀请招标')) return const Color(0xFFFF9500);
-    if (type.contains('竞争性谈判')) return const Color(0xFF4FACFE);
-    if (type.contains('询价')) return const Color(0xFF34C759);
-    if (type.contains('单一来源')) return const Color(0xFFAF52DE);
-    return const Color(0xFF9CA3AF);
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -273,9 +254,7 @@ class _BiddingListPageState extends ConsumerState<BiddingListPage> {
   }
 
   Widget _buildCard(BiddingVo item) {
-    final color = _typeColor(item.biddingType);
     final hasUrl = item.biddingUrl != null && item.biddingUrl!.isNotEmpty;
-    final recent = _isRecent(item.biddingTime);
 
     return GestureDetector(
       onTap: () => _openUrl(item.biddingUrl),
@@ -284,7 +263,6 @@ class _BiddingListPageState extends ConsumerState<BiddingListPage> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
-          border: recent ? Border.all(color: const Color(0xFF007AFF).withValues(alpha: 0.2)) : null,
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.04),
@@ -296,41 +274,16 @@ class _BiddingListPageState extends ConsumerState<BiddingListPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 第一行: 招标名称 + 类型标签
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Text(
-                    item.biddingName ?? '-',
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                if (item.biddingType != null && item.biddingType!.isNotEmpty) ...[
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      item.biddingType!,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                        color: color,
-                      ),
-                    ),
-                  ),
-                ],
-              ],
+            // 第一行: 招标名称
+            Text(
+              item.biddingName ?? '-',
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+              ),
             ),
             const SizedBox(height: 10),
-            // 第二行: 招标时间 + NEW标签 + 链接图标
+            // 第二行: 招标时间 + 链接图标
             Row(
               children: [
                 const Icon(Icons.access_time, size: 14, color: Color(0xFF9CA3AF)),
@@ -339,20 +292,6 @@ class _BiddingListPageState extends ConsumerState<BiddingListPage> {
                   _formatDate(item.biddingTime),
                   style: const TextStyle(fontSize: 13, color: Color(0xFF666666)),
                 ),
-                if (recent) ...[
-                  const SizedBox(width: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFF3B30),
-                      borderRadius: BorderRadius.circular(3),
-                    ),
-                    child: const Text(
-                      'NEW',
-                      style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: Colors.white),
-                    ),
-                  ),
-                ],
                 const Spacer(),
                 if (hasUrl)
                   const Icon(Icons.open_in_new, size: 16, color: Color(0xFF667EEA)),

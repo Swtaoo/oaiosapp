@@ -8,6 +8,7 @@ import 'package:jpush_flutter/jpush_flutter.dart';
 import '../../core/network/dio_client.dart';
 import '../../core/storage/secure_storage.dart';
 import '../notification/local_notification_service.dart';
+import '../notification/notification_service.dart';
 
 /// 推送事件
 class PushEvent {
@@ -164,6 +165,13 @@ class PushNotifier extends StateNotifier<PushState> {
     if (projectIdStr == null) return;
     final projectId = int.tryParse(projectIdStr);
     if (projectId == null) return;
+
+    // 非本人所属项目，不导航
+    final notifier = _ref.read(notificationServiceProvider.notifier);
+    if (!notifier.isMyProject(projectId)) {
+      debugPrint('[push_service] 忽略非成员项目推送点击: projectId=$projectId');
+      return;
+    }
 
     final context = LocalNotificationNotifier.navigatorKey?.currentContext;
     if (context != null) {

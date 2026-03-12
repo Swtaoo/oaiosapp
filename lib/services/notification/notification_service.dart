@@ -46,10 +46,18 @@ class NotificationState {
   final int? currentViewingProjectId;
   final Map<int, String> projectNameCache;
 
+  /// 当前用户所属的项目 ID 集合（null 表示尚未加载，放行所有）
+  final Set<int>? myProjectIds;
+
+  /// 当前用户是否为管理员（管理员跳过项目成员过滤）
+  final bool isAdmin;
+
   const NotificationState({
     this.unreadMap = const {},
     this.currentViewingProjectId,
     this.projectNameCache = const {},
+    this.myProjectIds,
+    this.isAdmin = false,
   });
 
   int get totalUnread =>
@@ -66,6 +74,9 @@ class NotificationState {
     int? currentViewingProjectId,
     bool clearCurrentViewingProject = false,
     Map<int, String>? projectNameCache,
+    Set<int>? myProjectIds,
+    bool clearMyProjectIds = false,
+    bool? isAdmin,
   }) {
     return NotificationState(
       unreadMap: unreadMap ?? this.unreadMap,
@@ -73,6 +84,10 @@ class NotificationState {
           ? null
           : (currentViewingProjectId ?? this.currentViewingProjectId),
       projectNameCache: projectNameCache ?? this.projectNameCache,
+      myProjectIds: clearMyProjectIds
+          ? null
+          : (myProjectIds ?? this.myProjectIds),
+      isAdmin: isAdmin ?? this.isAdmin,
     );
   }
 }
@@ -81,9 +96,47 @@ class NotificationState {
 class NotificationNotifier extends StateNotifier<NotificationState> {
   NotificationNotifier() : super(const NotificationState()) {
     _restoreFromStorage();
+    _restoreMyProjectIds();
   }
 
   static const _storageKey = 'notification_unread';
+  static const _myProjectIdsKey = 'my_project_ids';
+
+  /// 检查是否为当前用户所属的项目
+  /// 管理员放行所有；myProjectIds 尚未加载时（null）也放行，避免阻断正常使用
+  bool isMyProject(int projectId) {
+    if (state.isAdmin) return true;
+    final ids = state.myProjectIds;
+    return ids == null || ids.contains(projectId);
+  }
+
+  /// 获取当前用户的项目 ID 集合（供外部读取）
+  Set<int>? get myProjectIds => state.myProjectIds;
+
+  /// 设置/更新成员项目 ID 集合，同时清理非成员项目的 stale 未读记录
+  void setMyProjectIds(Set<int> ids) {
+    // 清理不属于用户的项目的未读记录
+    final cleanedMap = Map<int, UnreadInfo>.from(state.unreadMap)
+      ..removeWhere((projectId, _) => !ids.contains(projectId));
+
+    state = state.copyWith(
+      myProjectIds: ids,
+      unreadMap: cleanedMap,
+    );
+    _saveMyProjectIds();
+    _saveToStorage();
+  }
+
+  /// 设置管理员标记
+  void setAdmin(bool value) {
+    state = state.copyWith(isAdmin: value);
+  }
+
+  /// 清除成员项目 ID（退出登录时调用）
+  void clearMyProjectIds() {
+    state = state.copyWith(clearMyProjectIds: true, isAdmin: false);
+    _removeMyProjectIds();
+  }
 
   /// 设置当前查看的项目
   void setCurrentViewingProject(int? projectId) {
@@ -111,6 +164,9 @@ class NotificationNotifier extends StateNotifier<NotificationState> {
         '[消息]';
 
     if (projectId == null) return;
+
+    // 非本人所属项目的消息不计入未读
+    if (!isMyProject(projectId)) return;
 
     // 正在查看该项目时不计未读
     if (state.currentViewingProjectId == projectId) return;
@@ -174,6 +230,50 @@ class NotificationNotifier extends StateNotifier<NotificationState> {
       await prefs.setString(_storageKey, jsonEncode(obj));
     } catch (e) { debugPrint('[notification_service] Error: $e'); }
   }
+
+  /// 持久化 myProjectIds 到 SharedPreferences
+  Future<void> _saveMyProjectIds() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final ids = state.myProjectIds;
+      if (ids != null) {
+        await prefs.setStringList(
+          _myProjectIdsKey,
+          ids.map((id) => id.toString()).toList(),
+        );
+      }
+    } catch (e) {
+      debugPrint('[notification_service] saveMyProjectIds error: $e');
+    }
+  }
+
+  /// 从 SharedPreferences 移除 myProjectIds
+  Future<void> _removeMyProjectIds() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_myProjectIdsKey);
+    } catch (e) {
+      debugPrint('[notification_service] removeMyProjectIds error: $e');
+    }
+  }
+
+  /// 从本地存储恢复 myProjectIds（冷启动过渡期使用）
+  Future<void> _restoreMyProjectIds() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final stored = prefs.getStringList(_myProjectIdsKey);
+      if (stored != null && stored.isNotEmpty) {
+        final ids = stored
+            .map((s) => int.tryParse(s))
+            .whereType<int>()
+            .toSet();
+        state = state.copyWith(myProjectIds: ids);
+      }
+    } catch (e) {
+      debugPrint('[notification_service] restoreMyProjectIds error: $e');
+    }
+  }
+
   /// 获取某个项目最后一条消息的摘要
   String getLastMessageSummary(int projectId) {
     final info = state.unreadMap[projectId];

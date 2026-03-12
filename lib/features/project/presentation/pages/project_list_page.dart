@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../services/notification/notification_service.dart';
+import '../../../auth/providers/auth_provider.dart';
 import '../../data/models/project_models.dart';
 import '../../providers/project_providers.dart';
 import '../widgets/conversation_list_item.dart';
@@ -42,14 +43,42 @@ class _ProjectListPageState extends ConsumerState<ProjectListPage> {
     setState(() => _isLoading = true);
     try {
       final api = ref.read(projectApiProvider);
+      final notifier = ref.read(notificationServiceProvider.notifier);
+      final admin = ref.read(isAdminProvider);
+
+      // 管理员不过滤，普通用户刷新成员身份
+      Set<int> myIds = {};
+      if (!admin) {
+        final user = ref.read(currentUserProvider);
+        final personnelId = user?.personnelId;
+
+        if (personnelId != null) {
+          final staffRes = await api.getMyStaffRecords(personnelId: personnelId);
+          myIds = (staffRes.rows ?? [])
+              .where((s) => s.projectId != null)
+              .map((s) => s.projectId!)
+              .toSet();
+          notifier.setMyProjectIds(myIds);
+        } else {
+          myIds = notifier.myProjectIds ?? {};
+        }
+      }
+
       final res = await api.getProjectList();
       if (res.isSuccess) {
-        final projects =
+        var projects =
             (res.rows ?? []).where((p) => p.delFlag != 2).toList();
+
+        // 非管理员仅显示用户所属的项目
+        if (!admin && myIds.isNotEmpty) {
+          projects = projects
+              .where((p) => p.id != null && myIds.contains(p.id))
+              .toList();
+        }
+
         setState(() => _projects = projects);
 
         // 缓存项目名称到通知服务
-        final notifier = ref.read(notificationServiceProvider.notifier);
         for (final p in projects) {
           if (p.id != null && p.projectName != null) {
             notifier.cacheProjectName(p.id!, p.projectName!);

@@ -99,10 +99,16 @@ class WebSocketNotifier extends StateNotifier<WebSocketState> {
       final notificationNotifier =
           _ref.read(notificationServiceProvider.notifier);
       final notificationState = _ref.read(notificationServiceProvider);
+
+      // 非本人所属项目的消息，跳过未读计数和通知
+      final projectId = message['projectId'] as int?;
+      if (projectId != null && !notificationNotifier.isMyProject(projectId)) {
+        return;
+      }
+
       notificationNotifier.handleWebSocketMessage(message);
 
       // 当用户不在该项目聊天页时，触发本地通知
-      final projectId = message['projectId'] as int?;
       if (projectId != null &&
           notificationState.currentViewingProjectId != projectId) {
         final projectName =

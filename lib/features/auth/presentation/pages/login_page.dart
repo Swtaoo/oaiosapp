@@ -21,6 +21,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   final _passwordFocusNode = FocusNode();
 
   bool _loading = false;
+  bool _obscurePassword = true;
   String? _phoneError;
   String? _passwordError;
 
@@ -164,15 +165,30 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               TextField(
                 controller: _passwordController,
                 focusNode: _passwordFocusNode,
-                obscureText: true,
+                obscureText: _obscurePassword,
                 decoration: InputDecoration(
                   hintText: '密码',
                   errorText: _passwordError,
+                  suffixIcon: _passwordController.text.isNotEmpty
+                      ? IconButton(
+                          icon: Icon(
+                            _obscurePassword
+                                ? Icons.visibility_off_outlined
+                                : Icons.visibility_outlined,
+                            color: const Color(0xFFB0B0B0),
+                            size: 20,
+                          ),
+                          onPressed: () {
+                            setState(
+                                () => _obscurePassword = !_obscurePassword);
+                          },
+                        )
+                      : null,
                 ),
                 onChanged: (_) {
-                  if (_passwordError != null) {
-                    setState(() => _passwordError = null);
-                  }
+                  setState(() {
+                    if (_passwordError != null) _passwordError = null;
+                  });
                 },
                 onSubmitted: (_) => _handleLogin(),
               ),

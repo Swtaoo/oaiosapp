@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/providers/auth_provider.dart';
+import 'features/project/providers/project_providers.dart';
 import 'services/notification/local_notification_service.dart';
 import 'services/notification/notification_service.dart';
 import 'services/push/push_service.dart';
@@ -37,6 +38,10 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
   /// 初始化本地通知（不依赖登录状态）
   Future<void> _initLocalNotification() async {
     LocalNotificationNotifier.navigatorKey = rootNavigatorKey;
+    // 设置项目成员身份检查回调
+    LocalNotificationNotifier.isMyProjectChecker = (projectId) {
+      return ref.read(notificationServiceProvider.notifier).isMyProject(projectId);
+    };
     await ref.read(localNotificationProvider.notifier).init();
   }
 
@@ -54,6 +59,36 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
         debugPrint('[app] websocket connect error: $e');
       }),
     ]);
+
+    // 后台加载用户的项目成员身份（不阻塞 UI）
+    _loadMyProjectMembership();
+  }
+
+  /// 加载当前用户的项目成员身份
+  Future<void> _loadMyProjectMembership() async {
+    try {
+      final notifier = ref.read(notificationServiceProvider.notifier);
+
+      // 管理员跳过项目成员过滤，可看到所有项目消息
+      final admin = ref.read(isAdminProvider);
+      notifier.setAdmin(admin);
+      if (admin) return;
+
+      final user = ref.read(currentUserProvider);
+      final personnelId = user?.personnelId;
+      if (personnelId == null) return;
+
+      final api = ref.read(projectApiProvider);
+      final res = await api.getMyStaffRecords(personnelId: personnelId);
+      final ids = (res.rows ?? [])
+          .where((s) => s.projectId != null)
+          .map((s) => s.projectId!)
+          .toSet();
+
+      notifier.setMyProjectIds(ids);
+    } catch (e) {
+      debugPrint('[app] loadMyProjectMembership error: $e');
+    }
   }
 
   /// 退出登录时清理所有服务
@@ -61,6 +96,7 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
     _servicesInitialized = false;
     ref.read(pushServiceProvider.notifier).destroy();
     ref.read(webSocketProvider.notifier).disconnect();
+    ref.read(notificationServiceProvider.notifier).clearMyProjectIds();
     ref.read(notificationServiceProvider.notifier).clearAllUnread();
     ref.read(localNotificationProvider.notifier).cancelAll();
   }

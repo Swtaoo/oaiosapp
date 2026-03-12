@@ -43,7 +43,11 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+/android/build/
 nul
+
+# AI tool configs
+.codex/
 
 # Signing credentials (never commit)
 *.p12

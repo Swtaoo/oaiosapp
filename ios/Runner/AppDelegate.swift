@@ -13,6 +13,15 @@ import UIKit
   private var shouldStartLocationAfterPermission = false
   private var timeoutWorkItem: DispatchWorkItem?
 
+  /// 精度过滤：收集定位结果，选取最优
+  private var bestLocation: CLLocation?
+  /// 精度达标阈值（米），低于此值立即返回
+  private let acceptableAccuracy: CLLocationDistance = 50
+  /// 最大等待时间（秒），超时后返回已收集到的最优结果
+  private let locationCollectTimeout: TimeInterval = 10
+  /// 位置有效期（秒），超过此时间的缓存位置视为过期
+  private let maxLocationAge: TimeInterval = 30
+
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
@@ -123,14 +132,27 @@ import UIKit
   private func startSingleLocationRequest() {
     let manager = ensureLocationManager()
     stopTimeout()
+    bestLocation = nil
 
+    // 超时后返回已收集到的最优位置（而非直接报错）
     let workItem = DispatchWorkItem { [weak self] in
-      self?.finishLocationError(code: "LOCATION_TIMEOUT", message: "定位超时")
+      guard let self = self else { return }
+      if let best = self.bestLocation {
+        manager.stopUpdatingLocation()
+        self.finishLocationSuccess(
+          lat: best.coordinate.latitude,
+          lng: best.coordinate.longitude
+        )
+      } else {
+        manager.stopUpdatingLocation()
+        self.finishLocationError(code: "LOCATION_TIMEOUT", message: "定位超时")
+      }
     }
     timeoutWorkItem = workItem
-    DispatchQueue.main.asyncAfter(deadline: .now() + 15, execute: workItem)
+    DispatchQueue.main.asyncAfter(deadline: .now() + locationCollectTimeout, execute: workItem)
 
-    manager.requestLocation()
+    // 使用 startUpdatingLocation 持续获取定位，直到精度达标或超时
+    manager.startUpdatingLocation()
   }
 
   private func stopTimeout() {
@@ -140,6 +162,8 @@ import UIKit
 
   private func finishLocationSuccess(lat: Double, lng: Double) {
     stopTimeout()
+    locationManager?.stopUpdatingLocation()
+    bestLocation = nil
     let callback = locationResult
     locationResult = nil
     guard let callback else { return }
@@ -153,6 +177,8 @@ import UIKit
 
   private func finishLocationError(code: String, message: String) {
     stopTimeout()
+    locationManager?.stopUpdatingLocation()
+    bestLocation = nil
     let callback = locationResult
     locationResult = nil
     callback?(FlutterError(code: code, message: message, details: nil))
@@ -201,18 +227,41 @@ import UIKit
   }
 
   func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-    guard let location = locations.last else {
-      finishLocationError(code: "LOCATION_UNAVAILABLE", message: "无法获取当前位置")
+    guard locationResult != nil else {
+      // 没有待处理的请求，停止定位
+      manager.stopUpdatingLocation()
       return
     }
 
-    finishLocationSuccess(
-      lat: location.coordinate.latitude,
-      lng: location.coordinate.longitude
-    )
+    for location in locations {
+      // 过滤无效定位（horizontalAccuracy < 0 表示无效）
+      guard location.horizontalAccuracy >= 0 else { continue }
+
+      // 过滤过期缓存位置
+      let age = -location.timestamp.timeIntervalSinceNow
+      guard age <= maxLocationAge else { continue }
+
+      // 记录精度更好的位置
+      if bestLocation == nil || location.horizontalAccuracy < bestLocation!.horizontalAccuracy {
+        bestLocation = location
+      }
+
+      // 精度达标，立即返回
+      if location.horizontalAccuracy <= acceptableAccuracy {
+        manager.stopUpdatingLocation()
+        finishLocationSuccess(
+          lat: location.coordinate.latitude,
+          lng: location.coordinate.longitude
+        )
+        return
+      }
+    }
   }
 
   func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+    // 如果已经收集到了位置，忽略错误，等超时返回最优结果
+    if bestLocation != nil { return }
+    manager.stopUpdatingLocation()
     finishLocationError(code: "LOCATION_UNAVAILABLE", message: error.localizedDescription)
   }
 }
