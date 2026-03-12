@@ -20,11 +20,11 @@ subprojects {
     project.evaluationDependsOn(":app")
 }
 
-// 为缺少 namespace 的旧版插件自动注入 namespace（AGP 8+ 必需）
+// 旧版插件兼容：namespace + compileSdk 注入（AGP 8+ 必需）
 subprojects {
     plugins.withId("com.android.library") {
-        val android = project.extensions.getByType(com.android.build.gradle.LibraryExtension::class.java)
-        if (android.compileSdkVersion?.toIntOrNull()?.let { it < 35 } != false) {
+        val android = extensions.getByType(com.android.build.gradle.LibraryExtension::class.java)
+        if (android.compileSdk == null || android.compileSdk!! < 35) {
             android.compileSdk = 35
         }
         if (android.namespace.isNullOrEmpty()) {
