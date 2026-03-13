@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
@@ -6,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/attendance_constants.dart';
+import '../../../core/utils/coord_transform.dart';
 import '../../../core/utils/haversine.dart';
 
 /// 定位坐标
@@ -158,6 +160,13 @@ class GeolocationNotifier extends StateNotifier<GeolocationState> {
     final lng = _toDouble(result['lng']);
     if (lat == null || lng == null || lat.abs() > 90 || lng.abs() > 180) {
       throw const LocationFailure('定位数据无效，请稍后重试', retryable: true);
+    }
+
+    // iOS CLLocationManager 返回 WGS84 坐标，需转换为 GCJ02 以匹配高德围栏坐标。
+    // Android 使用高德 SDK，已直接返回 GCJ02，无需转换。
+    if (!kIsWeb && Platform.isIOS) {
+      final gcj = wgs84ToGcj02(lat, lng);
+      return GeoCoords(lat: gcj.lat, lng: gcj.lng);
     }
 
     return GeoCoords(lat: lat, lng: lng);

@@ -31,7 +31,9 @@ class _BiddingListPageState extends ConsumerState<BiddingListPage> {
   static const int _pageSize = 20;
 
   final _searchController = TextEditingController();
-  String _searchQuery = '';
+  /// 一级筛选默认关键字
+  static const String _defaultQuery = '信息';
+  String _searchQuery = _defaultQuery;
   Timer? _debounce;
 
   @override
@@ -60,7 +62,7 @@ class _BiddingListPageState extends ConsumerState<BiddingListPage> {
       final res = await api.getList(
         pageNum: _pageNum,
         pageSize: _pageSize,
-        biddingName: _searchQuery.isEmpty ? null : _searchQuery,
+        biddingName: _searchQuery,
         orderByColumn: 'bidding_time',
         isAsc: 'desc',
       );
@@ -88,8 +90,9 @@ class _BiddingListPageState extends ConsumerState<BiddingListPage> {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 500), () {
       final trimmed = value.trim();
-      if (trimmed == _searchQuery) return;
-      _searchQuery = trimmed;
+      final query = trimmed.isEmpty ? _defaultQuery : trimmed;
+      if (query == _searchQuery) return;
+      _searchQuery = query;
       _loadData(refresh: true);
     });
   }
@@ -245,7 +248,7 @@ class _BiddingListPageState extends ConsumerState<BiddingListPage> {
           const Icon(Icons.assignment_outlined, size: 60, color: Color(0xFFC7C7CC)),
           const SizedBox(height: 12),
           Text(
-            _searchQuery.isEmpty ? '暂无投标数据' : '未找到相关招标信息',
+            _searchQuery == _defaultQuery ? '暂无投标数据' : '未找到相关招标信息',
             style: const TextStyle(fontSize: 14, color: Color(0xFF9CA3AF)),
           ),
         ],
@@ -253,8 +256,17 @@ class _BiddingListPageState extends ConsumerState<BiddingListPage> {
     );
   }
 
+  /// 去掉 biddingType 中的"信息类型：" 前缀，只显示后面的内容
+  String _formatType(String? type) {
+    if (type == null || type.isEmpty) return '';
+    // 数据格式: "信息类型：答疑澄清"、"信息类型：招标计划" 等
+    final idx = type.indexOf('：');
+    if (idx >= 0 && idx < type.length - 1) return type.substring(idx + 1);
+    return type;
+  }
+
   Widget _buildCard(BiddingVo item) {
-    final hasUrl = item.biddingUrl != null && item.biddingUrl!.isNotEmpty;
+    final typeLabel = _formatType(item.biddingType);
 
     return GestureDetector(
       onTap: () => _openUrl(item.biddingUrl),
@@ -283,7 +295,7 @@ class _BiddingListPageState extends ConsumerState<BiddingListPage> {
               ),
             ),
             const SizedBox(height: 10),
-            // 第二行: 招标时间 + 链接图标
+            // 第二行: 招标时间 + 类型标签
             Row(
               children: [
                 const Icon(Icons.access_time, size: 14, color: Color(0xFF9CA3AF)),
@@ -293,8 +305,18 @@ class _BiddingListPageState extends ConsumerState<BiddingListPage> {
                   style: const TextStyle(fontSize: 13, color: Color(0xFF666666)),
                 ),
                 const Spacer(),
-                if (hasUrl)
-                  const Icon(Icons.open_in_new, size: 16, color: Color(0xFF667EEA)),
+                if (typeLabel.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF667EEA).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      typeLabel,
+                      style: const TextStyle(fontSize: 12, color: Color(0xFF667EEA)),
+                    ),
+                  ),
               ],
             ),
           ],
